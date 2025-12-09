@@ -438,7 +438,8 @@ async def _show_time_selection(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_TIME:"))
 async def handle_schedule_time_selected(callback: CallbackQuery, state: FSMContext):
     """Время выбрано из предопределённых"""
-    time_str = callback.data.split(":")[1]  # Формат "HH:MM"
+    # Исправляем парсинг: удаляем префикс, чтобы получить "HH:MM"
+    time_str = callback.data.replace("ADMIN_SCHEDULE_TIME:", "")
     hours, minutes = map(int, time_str.split(":"))
     schedule_time = time(hours, minutes)
     
@@ -638,12 +639,12 @@ async def handle_schedule_confirm(callback: CallbackQuery, state: FSMContext):
     await callback.answer("✅ Расписание создано!", show_alert=True)
     await callback.message.edit_text(
         f"✅ **Расписание успешно создано!**\n\n"
-        f"👦 Ребёнок: {child.display_name}\n"
-        f"📋 Задание: {task_type.name}\n"
-        f"📅 Периодичность: {days_text}\n"
-        f"🕐 Время: {time_text}\n"
-        f"🆔 ID расписания: {schedule.id}\n\n"
-        f"Бот будет автоматически отправлять напоминания по указанному графику.",
+        f"📋 **Расписание #{schedule.id}**\n"
+        f"📌 **Задание:** {task_type.name}\n"
+        f"👦 **Ребёнок:** {child.display_name}\n"
+        f"🕐 **Время:** {time_text}\n"
+        f"📅 **Дни:** {days_text}\n\n"
+        f"Бот будет автоматически отправлять напоминания по этому графику.",
         reply_markup=get_admin_schedules_menu(),
     )
     await state.clear()
