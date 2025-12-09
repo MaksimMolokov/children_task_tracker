@@ -222,7 +222,7 @@ async def handle_child_list(callback: CallbackQuery):
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(User).where(User.role == UserRole.CHILD).order_by(User.created_at.desc())
+            select(User).where(User.role == UserRole.CHILD, User.is_active == True).order_by(User.created_at.desc())
         )
         children = result.scalars().all()
 

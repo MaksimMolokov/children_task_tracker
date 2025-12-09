@@ -46,7 +46,7 @@ async def handle_task_type_add_cancel(callback: CallbackQuery, state: FSMContext
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
-        "💰 **Ставки**\n\n" "Выберите действие:",
+        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
     await callback.answer("Добавление отменено")
@@ -57,7 +57,7 @@ async def handle_reward_set_cancel(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
-        "💰 **Ставки**\n\n" "Выберите действие:",
+        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
     await callback.answer("Установка ставки отменена")
@@ -196,101 +196,173 @@ async def handle_task_type_execution_time(message: Message, state: FSMContext):
         f"Нужно ли прикладывать отчёт по выполнению? (да/нет):",
         reply_markup=get_back_button_menu(),
     )
-    await state.set_state(AddTaskTypeStates.waiting_for_requires_media)
 
 
-@router.message(AddTaskTypeStates.waiting_for_requires_media)
-async def handle_task_type_requires_media(message: Message, state: FSMContext):
-    """Обработка необходимости отчёта"""
-    # Удаляем сообщение пользователя сразу
-    try:
-        await message.delete()
-    except Exception:
-        pass
+
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_TT_FREQ:"))
+async def handle_task_type_frequency_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора частотности через кнопки"""
+    freq_type = callback.data.split(":")[1]
     
-    text = message.text.strip().lower()
-    requires_media = text in ["да", "yes", "д", "y", "1", "true"]
+    if freq_type == "custom":
+        await callback.message.edit_text(
+            "✏️ **Введите частотность вручную**\n"
+            "(например: 'по будням', 'каждые 3 дня' и т.д.):",
+            reply_markup=get_back_button_menu(),
+        )
+        await callback.answer()
+        # Остаемся в том же состоянии, ждем текст
+        return
 
-    await state.update_data(task_type_requires_media=requires_media)
+    # Если выбрали готовый вариант
+    await state.update_data(task_type_frequency=freq_type)
     
-    await message.answer(
-        f"✅ Отчёт: {'требуется' if requires_media else 'не требуется'}\n\n"
-        f"Введите частотность выполнения (daily/weekly/custom или '-' для пропуска):",
-        reply_markup=get_back_button_menu(),
+    await callback.message.edit_text(
+        "💰 **Стоимость выполнения**\n\n"
+        "Введите сумму вознаграждения за это задание (число, например: 1000):",
+        reply_markup=get_back_button_menu()
     )
-    await state.set_state(AddTaskTypeStates.waiting_for_frequency)
+    await state.set_state(AddTaskTypeStates.waiting_for_reward_amount)
+    await callback.answer()
 
 
-@router.message(AddTaskTypeStates.waiting_for_frequency)
-async def handle_task_type_frequency(message: Message, state: FSMContext):
-    """Обработка частотности выполнения"""
+@router.message(AddTaskTypeStates.waiting_for_reward_amount)
+async def handle_task_type_reward_amount(message: Message, state: FSMContext):
+    """Обработка ввода стоимости задания и показ предпросмотра"""
     # Удаляем сообщение пользователя сразу
     try:
         await message.delete()
     except Exception:
         pass
-    
-    frequency = message.text.strip() if message.text.strip() != "-" else None
-    if frequency and frequency not in ["daily", "weekly", "custom"]:
+
+    try:
+        amount = Decimal(message.text.strip())
+        if amount < 0:
+            raise ValueError
+    except (ValueError, Exception):
         error_msg = await message.answer(
-            "❌ Частотность должна быть: daily, weekly, custom или '-'. Попробуйте снова:",
+            "❌ Пожалуйста, введите положительное число (сумма вознаграждения):",
             reply_markup=get_back_button_menu(),
         )
         await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        try: await error_msg.delete()
+        except: pass
         return
 
+    # Сохраняем сумму в стейт
+    await state.update_data(task_type_reward_amount=amount)
+
+    # Формируем данные для предпросмотра
     data = await state.get_data()
+    category = data.get("task_type_category", TaskCategory.OTHER)
+
+    summary_text = (
+        f"📝 **Предпросмотр карточки задания**\n\n"
+        f"📋 **Название:** {data['task_type_name']}\n"
+        f"📝 **Описание:** {data.get('task_type_description')}\n"
+        f"📂 **Категория:** {category.value}\n"
+        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
+        f"💰 **Стоимость:** {amount} ARS\n\n"
+        f"❓ **Всё верно? Подтверждаете создание карточки?**"
+    )
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    buttons = [
+        [
+            InlineKeyboardButton(text="✅ Подтвердить и создать", callback_data="ADMIN_TT_CONFIRM"),
+        ],
+        [
+            InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await message.answer(summary_text, reply_markup=keyboard)
+    await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
+
+
+@router.callback_query(StateFilter(AddTaskTypeStates), lambda c: c.data == "ADMIN_TT_CONFIRM")
+async def handle_task_type_confirm(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение создания и сохранение в БД"""
+    data = await state.get_data()
+    reward_amount = data["task_type_reward_amount"]
 
     # Сохранение типа задания в БД
     async with AsyncSessionLocal() as session:
-        # Определяем категорию по умолчанию, если не указана
         category = data.get("task_type_category", TaskCategory.OTHER)
-        
+
         task_type = TaskType(
             name=data["task_type_name"],
             description=data.get("task_type_description"),
             category=category,
             execution_time=data.get("task_type_execution_time"),
-            requires_media=data.get("task_type_requires_media", False),
-            frequency=frequency,
             is_active=True,
         )
         session.add(task_type)
         await session.commit()
         await session.refresh(task_type)
 
-    # Показываем успешное сообщение с кнопкой просмотра списка
+    # Показываем успешное сообщение
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    view_button = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="📋 Посмотреть список заданий",
-                    callback_data="ADMIN_TASK_TYPE_LIST",
-                )
-            ],
-            [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
-            ]
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="📋 К списку заданий",
+                callback_data="ADMIN_TASK_TYPE_LIST",
+            )
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ В меню", callback_data="ADMIN_REWARDS")
         ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    text = (
+        f"✅ **Карточка задания успешно создана!**\n\n"
+        f"📋 **{task_type.name}**\n"
+        f"📝 {task_type.description}\n"
+        f"⏱ {task_type.execution_time} минут\n"
+        f"💰 Стоимость: {reward_amount} ARS\n"
+        f"🆔 ID: {task_type.id}"
     )
-    
-    await message.answer(
-        f"✅ **Тип задания успешно создан!**\n\n"
-        f"📋 Название: {task_type.name}\n"
-        f"📝 Описание: {task_type.description or 'не указано'}\n"
-        f"📂 Категория: {task_type.category.value}\n"
-        f"⏱ Время выполнения: {task_type.execution_time or 'не указано'} минут\n"
-        f"📸 Отчёт: {'требуется' if task_type.requires_media else 'не требуется'}\n"
-        f"🔄 Частотность: {task_type.frequency or 'не указана'}\n"
-        f"🆔 ID: {task_type.id}",
-        reply_markup=view_button,
-    )
+
+    await callback.message.edit_text(text, reply_markup=keyboard)
     await state.clear()
+
+
+
+
+
+
+# Удален старый хэндлер
+async def handle_task_type_frequency_text(message: Message, state: FSMContext):
+    """Обработка ввода частотности вручную (для custom)"""
+    # Удаляем сообщение пользователя сразу
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    
+    frequency = message.text.strip()
+    if not frequency or len(frequency) > 50:
+         error_msg = await message.answer(
+            "❌ Слишком длинный текст. Введите кратко (до 50 символов):",
+            reply_markup=get_back_button_menu(),
+        )
+         await asyncio.sleep(5)
+         try: await error_msg.delete() 
+         except: pass
+         return
+    
+    await state.update_data(task_type_frequency=frequency)
+
+    await message.answer(
+        "💰 **Стоимость выполнения**\n\n"
+        "Введите сумму вознаграждения за это задание (число, например: 1000):",
+        reply_markup=get_back_button_menu()
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_reward_amount)
 
 
 # ========== Обработчики для ставок ==========
@@ -332,9 +404,9 @@ async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMCont
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            "💰 **Установка ставки по ребёнку**\n\n" "Выберите ребёнка:",
-            reply_markup=keyboard,
-        )
+        "🗂 **Установка ставки по ребёнку**\n\n" "Выберите ребёнка:",
+        reply_markup=keyboard,
+    )
         await callback.answer()
 
 
@@ -397,9 +469,9 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            f"💰 **Установка ставки для {child.display_name}**\n\n" "Выберите тип задания:",
-            reply_markup=keyboard,
-        )
+        f"🗂 **Установка ставки для {child.display_name}**\n\n" "Выберите тип задания:",
+        reply_markup=keyboard,
+    )
         await callback.answer()
 
 
@@ -441,9 +513,9 @@ async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSM
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            "💰 **Установка ставки по заданию**\n\n" "Выберите тип задания:",
-            reply_markup=keyboard,
-        )
+        "🗂 **Установка ставки по заданию**\n\n" "Выберите тип задания:",
+        reply_markup=keyboard,
+    )
         await callback.answer()
 
 
@@ -506,9 +578,9 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            f"💰 **Установка ставки для {task_type.name}**\n\n" "Выберите ребёнка:",
-            reply_markup=keyboard,
-        )
+        f"🗂 **Установка ставки для {task_type.name}**\n\n" "Выберите ребёнка:",
+        reply_markup=keyboard,
+    )
         await callback.answer()
 
 

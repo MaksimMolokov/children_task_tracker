@@ -25,7 +25,7 @@ async def handle_task_type_list(callback: CallbackQuery):
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(TaskType).order_by(TaskType.created_at.desc())
+            select(TaskType).where(TaskType.is_active == True).order_by(TaskType.created_at.desc())
         )
         task_types = result.scalars().all()
 

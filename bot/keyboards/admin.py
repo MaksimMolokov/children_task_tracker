@@ -32,7 +32,7 @@ def get_admin_main_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👦 Дети", callback_data=ADMIN_CHILDREN),
             ],
             [
-                InlineKeyboardButton(text="💰 Ставки", callback_data=ADMIN_REWARDS),
+                InlineKeyboardButton(text="🗂 Карточки заданий", callback_data=ADMIN_REWARDS),
                 InlineKeyboardButton(text="📊 Отчёты", callback_data=ADMIN_REPORTS),
             ],
             [
