@@ -178,47 +178,6 @@ async def handle_children(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "ADMIN_REWARDS")
-async def handle_rewards(callback: CallbackQuery):
-    """
-    Обработка "💰 Ставки".
-    См. SPEC.md раздел 7.6
-    """
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    
-    # Добавляем кнопку для создания типа задания
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="👦 По ребёнку",
-                    callback_data="ADMIN_REWARDS_BY_CHILD_SELECT",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="📋 По заданию",
-                    callback_data="ADMIN_REWARDS_BY_TASKTYPE_SELECT",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="➕ Создать тип задания",
-                    callback_data="ADMIN_ADD_TASK_TYPE",
-                ),
-            ],
-            [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN"),
-            ],
-        ]
-    )
-    
-    await callback.message.edit_text(
-        "💰 **Ставки**\n\n" "Выберите действие:",
-        reply_markup=keyboard,
-    )
-    await callback.answer()
-
 
 @router.callback_query(lambda c: c.data == "ADMIN_REPORTS")
 async def handle_reports(callback: CallbackQuery):
