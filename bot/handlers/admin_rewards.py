@@ -105,52 +105,15 @@ async def handle_task_type_description(message: Message, state: FSMContext):
     description = message.text.strip() if message.text.strip() != "-" else None
 
     await state.update_data(task_type_description=description)
-    
-    # Предлагаем выбрать категорию
-    categories_text = "\n".join([f"{i+1}. {cat.value}" for i, cat in enumerate(TaskCategory)])
+
     await message.answer(
-        f"✅ Описание сохранено.\n\n"
-        f"Выберите категорию задания (введите номер):\n\n"
-        f"{categories_text}",
-        reply_markup=get_back_button_menu(),
-    )
-    await state.set_state(AddTaskTypeStates.waiting_for_category)
-
-
-@router.message(AddTaskTypeStates.waiting_for_category)
-async def handle_task_type_category(message: Message, state: FSMContext):
-    """Обработка категории задания"""
-    # Удаляем сообщение пользователя сразу
-    try:
-        await message.delete()
-    except Exception:
-        pass
-    
-    try:
-        category_num = int(message.text.strip())
-        categories = list(TaskCategory)
-        if category_num < 1 or category_num > len(categories):
-            raise ValueError
-        category = categories[category_num - 1]
-    except (ValueError, IndexError):
-        error_msg = await message.answer(
-            "❌ Пожалуйста, введите номер категории от 1 до 5:",
-            reply_markup=get_back_button_menu(),
-        )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
-        return
-
-    await state.update_data(task_type_category=category)
-    await message.answer(
-        f"✅ Категория выбрана: {category.value}\n\n"
-        f"Введите время выполнения в минутах (число, можно пропустить, отправив '-'):",
+        f"⏱ Введите время выполнения в минутах (число):",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_execution_time)
+
+
+# Удален хэндлер для выбора категории
 
 
 @router.message(AddTaskTypeStates.waiting_for_execution_time)
