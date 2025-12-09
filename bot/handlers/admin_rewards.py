@@ -125,32 +125,26 @@ async def handle_task_type_execution_time(message: Message, state: FSMContext):
     except Exception:
         pass
     
-    execution_time = None
-    if message.text.strip() != "-":
+    try:
+        execution_time = int(message.text.strip())
+        if execution_time < 1:
+            raise ValueError("слишком маленькое значение")
+        if execution_time > 480:  # 8 часов максимум
+            raise ValueError("слишком большое значение")
+    except ValueError as e:
+        error_msg_text = "❌ Пожалуйста, введите число от 1 до 480 (минуты):"
+        if "слишком маленькое" in str(e):
+            error_msg_text = "❌ Время выполнения должно быть не менее 1 минуты:"
+        elif "слишком большое" in str(e):
+            error_msg_text = "❌ Время выполнения не может превышать 8 часов (480 минут):"
+
+        error_msg = await message.answer(error_msg_text, reply_markup=get_back_button_menu())
+        await asyncio.sleep(5)
         try:
-            execution_time = int(message.text.strip())
-            if execution_time < 1:
-                error_msg = await message.answer(
-                    "❌ Время выполнения должно быть положительным числом. Попробуйте снова:",
-                    reply_markup=get_back_button_menu(),
-                )
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except Exception:
-                    pass
-                return
-        except ValueError:
-            error_msg = await message.answer(
-                "❌ Пожалуйста, введите число (минуты) или '-' для пропуска:",
-                reply_markup=get_back_button_menu(),
-            )
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except Exception:
-                pass
-            return
+            await error_msg.delete()
+        except Exception:
+            pass
+        return
 
     await state.update_data(task_type_execution_time=execution_time)
     
@@ -202,12 +196,17 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     try:
         amount = Decimal(message.text.strip())
         if amount < 0:
-            raise ValueError
-    except (ValueError, Exception):
-        error_msg = await message.answer(
-            "❌ Пожалуйста, введите положительное число (сумма вознаграждения):",
-            reply_markup=get_back_button_menu(),
-        )
+            raise ValueError("отрицательная сумма")
+        if amount > 100000:  # Максимум 100k ARS
+            raise ValueError("слишком большая сумма")
+    except ValueError as e:
+        error_msg_text = "❌ Пожалуйста, введите положительное число (сумма вознаграждения):"
+        if "отрицательная" in str(e):
+            error_msg_text = "❌ Сумма должна быть положительной:"
+        elif "слишком большая" in str(e):
+            error_msg_text = "❌ Сумма не может превышать 100,000 ARS:"
+
+        error_msg = await message.answer(error_msg_text, reply_markup=get_back_button_menu())
         await asyncio.sleep(5)
         try: await error_msg.delete()
         except: pass
@@ -234,6 +233,18 @@ async def handle_task_type_confirm(message: Message, state: FSMContext):
         pass
 
     text = message.text.strip().lower()
+
+    # Валидация ответа
+    if text not in ["да", "yes", "д", "y", "1", "true", "нет", "no", "н", "n", "0", "false"]:
+        error_msg = await message.answer(
+            "❌ Пожалуйста, ответьте 'да' или 'нет' на вопрос о необходимости отчёта:",
+            reply_markup=get_back_button_menu(),
+        )
+        await asyncio.sleep(5)
+        try: await error_msg.delete()
+        except: pass
+        return
+
     requires_media = text in ["да", "yes", "д", "y", "1", "true"]
 
     data = await state.get_data()
