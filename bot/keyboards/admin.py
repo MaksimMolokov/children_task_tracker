@@ -147,28 +147,22 @@ def get_admin_children_menu() -> InlineKeyboardMarkup:
 
 def get_admin_rewards_menu() -> InlineKeyboardMarkup:
     """
-    Меню ставок.
+    Меню карточек заданий.
     См. SPEC.md раздел 7.6
     """
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="👦 По ребёнку",
-                    callback_data="ADMIN_REWARDS_BY_CHILD_SELECT",
+                    text="📋 Список карточек",
+                    callback_data="ADMIN_TASK_TYPE_LIST",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="📋 По заданию",
-                    callback_data="ADMIN_REWARDS_BY_TASKTYPE_SELECT",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="➕ Создать тип задания",
+                    text="➕ Создать новую карточку",
                     callback_data="ADMIN_ADD_TASK_TYPE",
                 ),
             ],

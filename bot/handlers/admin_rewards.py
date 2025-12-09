@@ -33,7 +33,7 @@ router.message.middleware(AutoDeleteMiddleware())
 async def handle_task_type_add_start(callback: CallbackQuery, state: FSMContext):
     """Начало диалога добавления типа задания"""
     await callback.message.edit_text(
-        "➕ **Добавить тип задания**\n\n" "Введите название задания:",
+        "➕ **Создать новую карточку задания**\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
@@ -229,7 +229,7 @@ async def handle_task_type_frequency_callback(callback: CallbackQuery, state: FS
 
 @router.message(AddTaskTypeStates.waiting_for_reward_amount)
 async def handle_task_type_reward_amount(message: Message, state: FSMContext):
-    """Обработка ввода стоимости задания и показ предпросмотра"""
+    """Обработка ввода стоимости задания и переход к вопросу про отчет"""
     # Удаляем сообщение пользователя сразу
     try:
         await message.delete()
@@ -253,43 +253,32 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     # Сохраняем сумму в стейт
     await state.update_data(task_type_reward_amount=amount)
 
-    # Формируем данные для предпросмотра
-    data = await state.get_data()
-    category = data.get("task_type_category", TaskCategory.OTHER)
-
-    summary_text = (
-        f"📝 **Предпросмотр карточки задания**\n\n"
-        f"📋 **Название:** {data['task_type_name']}\n"
-        f"📝 **Описание:** {data.get('task_type_description')}\n"
-        f"📂 **Категория:** {category.value}\n"
-        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
-        f"💰 **Стоимость:** {amount} ARS\n\n"
-        f"❓ **Всё верно? Подтверждаете создание карточки?**"
+    await message.answer(
+        f"✅ Стоимость сохранена: {amount} ARS\n\n"
+        f"📸 Нужно ли прикладывать отчёт по выполнению? (да/нет):",
+        reply_markup=get_back_button_menu(),
     )
-
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    buttons = [
-        [
-            InlineKeyboardButton(text="✅ Подтвердить и создать", callback_data="ADMIN_TT_CONFIRM"),
-        ],
-        [
-            InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
-        ]
-    ]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    await message.answer(summary_text, reply_markup=keyboard)
     await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
 
 
-@router.callback_query(StateFilter(AddTaskTypeStates), lambda c: c.data == "ADMIN_TT_CONFIRM")
-async def handle_task_type_confirm(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение создания и сохранение в БД"""
+@router.message(AddTaskTypeStates.waiting_for_confirmation)
+async def handle_task_type_confirm(message: Message, state: FSMContext):
+    """Обработка ответа про отчет и создание задания"""
+    # Удаляем сообщение пользователя сразу
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    text = message.text.strip().lower()
+    requires_media = text in ["да", "yes", "д", "y", "1", "true"]
+
     data = await state.get_data()
     reward_amount = data["task_type_reward_amount"]
 
     # Сохранение типа задания в БД
     async with AsyncSessionLocal() as session:
+        # Категория по умолчанию
         category = data.get("task_type_category", TaskCategory.OTHER)
 
         task_type = TaskType(
@@ -297,6 +286,7 @@ async def handle_task_type_confirm(callback: CallbackQuery, state: FSMContext):
             description=data.get("task_type_description"),
             category=category,
             execution_time=data.get("task_type_execution_time"),
+            requires_media=requires_media,
             is_active=True,
         )
         session.add(task_type)
@@ -324,10 +314,11 @@ async def handle_task_type_confirm(callback: CallbackQuery, state: FSMContext):
         f"📝 {task_type.description}\n"
         f"⏱ {task_type.execution_time} минут\n"
         f"💰 Стоимость: {reward_amount} ARS\n"
+        f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
         f"🆔 ID: {task_type.id}"
     )
 
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=keyboard)
     await state.clear()
 
 

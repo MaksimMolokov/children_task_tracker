@@ -15,7 +15,6 @@ class AddTaskTypeStates(StatesGroup):
     """Состояния для добавления типа задания"""
     waiting_for_name = State()
     waiting_for_description = State()
-    waiting_for_category = State()
     waiting_for_execution_time = State()
     waiting_for_reward_amount = State()
     waiting_for_confirmation = State()
