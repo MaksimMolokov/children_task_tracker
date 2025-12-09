@@ -18,7 +18,6 @@ from bot.keyboards.admin import (
     get_admin_main_menu,
     get_admin_reports_menu,
     get_admin_rewards_menu,
-    get_admin_schedules_menu,
     get_back_button_menu,
     ADMIN_BACK_MAIN,
 )
@@ -149,21 +148,6 @@ async def handle_check_today_by_child(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "ADMIN_SCHEDULES")
-async def handle_schedules(callback: CallbackQuery):
-    """
-    Обработка "🗓 Расписания".
-    См. SPEC.md раздел 7.4
-    """
-    # Импортируем напрямую, чтобы избежать циклических импортов
-    from bot.keyboards.admin import get_admin_schedules_menu
-    await callback.message.edit_text(
-        "🗓 **Расписания**\n\n" "Выберите действие:",
-        reply_markup=get_admin_schedules_menu(),
-    )
-    await callback.answer()
-
-
 @router.callback_query(lambda c: c.data == "ADMIN_CHILDREN")
 async def handle_children(callback: CallbackQuery):
     """
@@ -262,15 +246,10 @@ async def handle_testing(callback: CallbackQuery):
 async def handle_assign_task(callback: CallbackQuery):
     """
     Обработка "➕ Назначить задание".
-    См. SPEC.md раздел 7.3
+    Показывает список карточек заданий для выбора.
     """
-    await callback.message.edit_text(
-        "➕ **Назначить задание**\n\n"
-        "Эта функция будет реализована в следующих версиях.\n"
-        "Пока используйте команды /add_task_type и настройте расписание.",
-        reply_markup=get_back_button_menu(),
-    )
-    await callback.answer()
+    from bot.handlers.admin_task_types import handle_assign_task_list
+    await handle_assign_task_list(callback)
 
 
 # Обработчик для добавления ребёнка (перенаправление)
@@ -341,76 +320,6 @@ async def handle_child_delete_redirect(callback: CallbackQuery):
     """Перенаправление на обработчик удаления ребёнка"""
     from bot.handlers.admin_children import handle_child_delete
     await handle_child_delete(callback)
-
-@router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE"))
-async def handle_schedule_redirects(callback: CallbackQuery, state: FSMContext):
-    """Перенаправление обработчиков расписания"""
-    from bot.handlers.admin_schedules import (
-        handle_schedule_add_start,
-        handle_schedule_task_type_selected,
-        handle_schedule_all_children,
-        handle_schedule_select_children,
-        handle_schedule_toggle_child,
-        handle_schedule_children_done,
-        handle_schedule_period_daily,
-        handle_schedule_period_weekdays,
-        handle_schedule_period_weekends,
-        handle_schedule_period_weekly,
-        handle_schedule_period_custom,
-        handle_schedule_day_selected,
-        handle_schedule_toggle_day,
-        handle_schedule_days_done,
-        handle_schedule_time_selected,
-        handle_schedule_time_custom,
-        handle_schedule_confirm,
-        handle_schedule_list,
-        handle_schedule_toggle,
-    )
-    
-    if callback.data == "ADMIN_SCHEDULE_ADD":
-        await handle_schedule_add_start(callback, state)
-    elif callback.data.startswith("ADMIN_SCHEDULE_TASK_TYPE:"):
-        await handle_schedule_task_type_selected(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_ALL_CHILDREN":
-        await handle_schedule_all_children(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_SELECT_CHILDREN":
-        await handle_schedule_select_children(callback, state)
-    elif callback.data.startswith("ADMIN_SCHEDULE_TOGGLE_CHILD:"):
-        await handle_schedule_toggle_child(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_CHILDREN_DONE":
-        await handle_schedule_children_done(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_DAILY":
-        await handle_schedule_period_daily(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_WEEKDAYS":
-        await handle_schedule_period_weekdays(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_WEEKENDS":
-        await handle_schedule_period_weekends(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_WEEKLY":
-        await handle_schedule_period_weekly(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_CUSTOM":
-        await handle_schedule_period_custom(callback, state)
-    elif callback.data.startswith("ADMIN_SCHEDULE_DAY:"):
-        await handle_schedule_day_selected(callback, state)
-    elif callback.data.startswith("ADMIN_SCHEDULE_TOGGLE_DAY:"):
-        await handle_schedule_toggle_day(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_DAYS_DONE":
-        await handle_schedule_days_done(callback, state)
-    elif callback.data.startswith("ADMIN_SCHEDULE_TIME:"):
-        await handle_schedule_time_selected(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_TIME_CUSTOM":
-        await handle_schedule_time_custom(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_CONFIRM":
-        await handle_schedule_confirm(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_LIST":
-        await handle_schedule_list(callback)
-    elif callback.data.startswith("ADMIN_SCHEDULE_TOGGLE:"):
-        await handle_schedule_toggle(callback)
-    elif callback.data == "ADMIN_SCHEDULE_SELECT_CHILDREN_BACK":
-        from bot.handlers.admin_schedules import handle_schedule_select_children_back
-        await handle_schedule_select_children_back(callback, state)
-    elif callback.data == "ADMIN_SCHEDULE_PERIOD_BACK":
-        from bot.handlers.admin_schedules import handle_schedule_period_back
-        await handle_schedule_period_back(callback, state)
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_"))
 async def handle_other_admin_callbacks(callback: CallbackQuery):

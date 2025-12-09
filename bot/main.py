@@ -62,6 +62,8 @@ async def main():
     from bot.handlers import admin_children, admin_rewards, admin_schedules, admin_task_types, admin_testing
 
     # Важно: FSM обработчики должны быть зарегистрированы первыми для правильной работы
+    # Роутер children должен быть зарегистрирован раньше admin_menu, чтобы обработчик task_complete не перехватывался
+    dp.include_router(children.router)  # Обработчики действий детей (task_complete, медиа)
     dp.include_router(admin_children.router)  # Обработчики для детей (включая FSM)
     dp.include_router(admin_rewards.router)  # Обработчики для карточек заданий (включая FSM)
     dp.include_router(admin_schedules.router)  # Обработчики для расписаний (включая FSM)
@@ -70,7 +72,6 @@ async def main():
     dp.include_router(common.router)
     dp.include_router(admin.router)
     dp.include_router(admin_menu.router)  # Админ-меню
-    dp.include_router(children.router)
 
     # Инициализация БД и планировщика
     async with lifespan(None):

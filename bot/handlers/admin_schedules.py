@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.handlers.fsm_states import AddScheduleStates
-from bot.keyboards.admin import get_admin_schedules_menu, get_back_button_menu
+from bot.keyboards.admin import get_back_button_menu
 from bot.middleware.auth import AdminMiddleware
 from db.database import AsyncSessionLocal
 from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScope, TaskType, User, UserRole
@@ -56,7 +56,7 @@ async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
         if not children:
             await callback.message.edit_text(
                 "❌ Нет активных детей. Сначала добавьте ребёнка.",
-                reply_markup=get_admin_schedules_menu(),
+                reply_markup=get_back_button_menu(),
             )
             await callback.answer()
             return
@@ -111,7 +111,7 @@ async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMCont
         if not task_types:
             await callback.message.edit_text(
                 "❌ Нет активных типов заданий. Сначала создайте тип задания в меню 'Ставки'.",
-                reply_markup=get_admin_schedules_menu(),
+                reply_markup=get_back_button_menu(),
             )
             await callback.answer()
             return
@@ -645,7 +645,7 @@ async def handle_schedule_confirm(callback: CallbackQuery, state: FSMContext):
         f"🕐 **Время:** {time_text}\n"
         f"📅 **Дни:** {days_text}\n\n"
         f"Бот будет автоматически отправлять напоминания по этому графику.",
-        reply_markup=get_admin_schedules_menu(),
+        reply_markup=get_back_button_menu(),
     )
     await state.clear()
 
@@ -664,7 +664,7 @@ async def handle_schedule_list(callback: CallbackQuery):
 
         if not schedules:
             text = "🗓 **Список расписаний**\n\n" "Расписания ещё не созданы."
-            keyboard = get_admin_schedules_menu()
+            keyboard = get_back_button_menu()
         else:
             lines = ["🗓 **Список расписаний**\n"]
             buttons = []
@@ -761,7 +761,7 @@ async def handle_schedule_add_cancel(callback: CallbackQuery, state: FSMContext)
     await state.clear()
     await callback.message.edit_text(
         "🗓 **Расписания**\n\n" "Выберите действие:",
-        reply_markup=get_admin_schedules_menu(),
+        reply_markup=get_back_button_menu(),
     )
     await callback.answer("Добавление отменено")
 

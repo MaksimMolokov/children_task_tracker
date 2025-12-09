@@ -28,7 +28,6 @@ def get_admin_main_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="➕ Назначить задание", callback_data=ADMIN_ASSIGN_TASK),
             ],
             [
-                InlineKeyboardButton(text="🗓 Расписания", callback_data=ADMIN_SCHEDULES),
                 InlineKeyboardButton(text="👦 Дети", callback_data=ADMIN_CHILDREN),
             ],
             [
@@ -75,33 +74,6 @@ def get_admin_check_tasks_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="❌ Просроченные / не сделаны",
                     callback_data="ADMIN_CHECK_FAILED_TODAY",
-                ),
-            ],
-            [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
-            ],
-        ]
-    )
-    return keyboard
-
-
-def get_admin_schedules_menu() -> InlineKeyboardMarkup:
-    """
-    Меню расписаний.
-    См. SPEC.md раздел 7.4
-    """
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="➕ Новое расписание",
-                    callback_data="ADMIN_SCHEDULE_ADD",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="📃 Список расписаний",
-                    callback_data="ADMIN_SCHEDULE_LIST",
                 ),
             ],
             [

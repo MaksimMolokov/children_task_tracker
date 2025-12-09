@@ -3,6 +3,7 @@
 """
 import asyncio
 import logging
+from datetime import time
 
 from aiogram import Router
 from aiogram.filters import StateFilter
@@ -12,8 +13,23 @@ from aiogram.types import CallbackQuery, Message
 from bot.handlers.fsm_states import AddTaskTypeStates, SetRewardStates
 from bot.keyboards.admin import get_admin_rewards_menu, get_back_button_menu
 from db.database import AsyncSessionLocal
-from db.models import ChildTaskReward, TaskCategory, TaskType, User, UserRole
+from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScope, TaskCategory, TaskType, User, UserRole
 from decimal import Decimal
+
+# Константы для дней недели
+DAYS_OF_WEEK = {
+    "MON": "Понедельник",
+    "TUE": "Вторник",
+    "WED": "Среда",
+    "THU": "Четверг",
+    "FRI": "Пятница",
+    "SAT": "Суббота",
+    "SUN": "Воскресенье",
+}
+
+WEEKDAYS = "MON,TUE,WED,THU,FRI"
+WEEKENDS = "SAT,SUN"
+ALL_DAYS = "MON,TUE,WED,THU,FRI,SAT,SUN"
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -149,39 +165,11 @@ async def handle_task_type_execution_time(message: Message, state: FSMContext):
     await state.update_data(task_type_execution_time=execution_time)
     
     await message.answer(
-        f"✅ Время выполнения сохранено: {execution_time or 'не указано'} минут\n\n"
-        f"Нужно ли прикладывать отчёт по выполнению? (да/нет):",
+        f"✅ Время выполнения сохранено: {execution_time} минут\n\n"
+        f"💰 Введите стоимость выполнения задания (ARS):",
         reply_markup=get_back_button_menu(),
     )
-
-
-
-
-@router.callback_query(lambda c: c.data.startswith("ADMIN_TT_FREQ:"))
-async def handle_task_type_frequency_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора частотности через кнопки"""
-    freq_type = callback.data.split(":")[1]
-    
-    if freq_type == "custom":
-        await callback.message.edit_text(
-            "✏️ **Введите частотность вручную**\n"
-            "(например: 'по будням', 'каждые 3 дня' и т.д.):",
-            reply_markup=get_back_button_menu(),
-        )
-        await callback.answer()
-        # Остаемся в том же состоянии, ждем текст
-        return
-
-    # Если выбрали готовый вариант
-    await state.update_data(task_type_frequency=freq_type)
-    
-    await callback.message.edit_text(
-        "💰 **Стоимость выполнения**\n\n"
-        "Введите сумму вознаграждения за это задание (число, например: 1000):",
-        reply_markup=get_back_button_menu()
-    )
     await state.set_state(AddTaskTypeStates.waiting_for_reward_amount)
-    await callback.answer()
 
 
 @router.message(AddTaskTypeStates.waiting_for_reward_amount)
@@ -236,26 +224,379 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     await state.set_state(AddTaskTypeStates.waiting_for_report_choice)
 
 
+
+
 @router.callback_query(lambda c: c.data in ["REPORT_YES", "REPORT_NO"])
 async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора необходимости отчета"""
     requires_media = callback.data == "REPORT_YES"
     await state.update_data(task_type_requires_media=requires_media)
 
-    # Показываем summary для подтверждения
-    data = await state.get_data()
+    # Переходим к созданию расписания
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    buttons = [
+        [
+            InlineKeyboardButton(text="📅 Каждый день", callback_data="TASK_SCHEDULE_PERIOD_DAILY"),
+        ],
+        [
+            InlineKeyboardButton(text="🏢 Будни (Пн-Пт)", callback_data="TASK_SCHEDULE_PERIOD_WEEKDAYS"),
+        ],
+        [
+            InlineKeyboardButton(text="🏖 Выходные (Сб-Вс)", callback_data="TASK_SCHEDULE_PERIOD_WEEKENDS"),
+        ],
+        [
+            InlineKeyboardButton(text="📆 Раз в неделю (выбрать день)", callback_data="TASK_SCHEDULE_PERIOD_WEEKLY"),
+        ],
+        [
+            InlineKeyboardButton(text="🗓 Выбрать конкретные дни", callback_data="TASK_SCHEDULE_PERIOD_CUSTOM"),
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
+    await callback.message.edit_text(
+        "🗓 **Создание расписания для карточки**\n\n"
+        "Выберите периодичность (когда бот будет напоминать о задании):",
+        reply_markup=keyboard
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_schedule_periodicity)
+    await callback.answer()
+
+
+# Обработчики создания расписания для карточки
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_DAILY")
+async def handle_task_schedule_period_daily(callback: CallbackQuery, state: FSMContext):
+    """Выбрано ежедневно"""
+    await state.update_data(
+        schedule_days_of_week=ALL_DAYS,
+        schedule_periodicity=SchedulePeriodicity.DAILY,
+    )
+    await callback.answer("✅ Периодичность: Каждый день")
+    await _show_task_schedule_time_selection(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKDAYS")
+async def handle_task_schedule_period_weekdays(callback: CallbackQuery, state: FSMContext):
+    """Выбраны будни"""
+    await state.update_data(
+        schedule_days_of_week=WEEKDAYS,
+        schedule_periodicity=SchedulePeriodicity.DAILY,
+    )
+    await callback.answer("✅ Периодичность: Будни (Пн-Пт)")
+    await _show_task_schedule_time_selection(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKENDS")
+async def handle_task_schedule_period_weekends(callback: CallbackQuery, state: FSMContext):
+    """Выбраны выходные"""
+    await state.update_data(
+        schedule_days_of_week=WEEKENDS,
+        schedule_periodicity=SchedulePeriodicity.DAILY,
+    )
+    await callback.answer("✅ Периодичность: Выходные (Сб-Вс)")
+    await _show_task_schedule_time_selection(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKLY")
+async def handle_task_schedule_period_weekly(callback: CallbackQuery, state: FSMContext):
+    """Выбрано раз в неделю - выбираем день"""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    buttons = []
+    for day_code, day_name in DAYS_OF_WEEK.items():
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"📅 {day_name}",
+                callback_data=f"TASK_SCHEDULE_DAY:{day_code}",
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(
+        "🗓 **Создание расписания**\n\n" "Выберите день недели:",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_DAY:"))
+async def handle_task_schedule_day_selected(callback: CallbackQuery, state: FSMContext):
+    """Выбран конкретный день недели"""
+    day_code = callback.data.split(":")[1]
+    day_name = DAYS_OF_WEEK.get(day_code, day_code)
+    await state.update_data(
+        schedule_days_of_week=day_code,
+        schedule_periodicity=SchedulePeriodicity.WEEKLY,
+    )
+    await callback.answer(f"✅ День выбран: {day_name}")
+    await _show_task_schedule_time_selection(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_CUSTOM")
+async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSMContext):
+    """Выбор пользовательских дней"""
+    data = await state.get_data()
+    selected_days = data.get("schedule_selected_days", [])
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    buttons = []
+    for day_code, day_name in DAYS_OF_WEEK.items():
+        is_selected = day_code in selected_days
+        prefix = "✅" if is_selected else "⬜"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{prefix} {day_name}",
+                callback_data=f"TASK_SCHEDULE_TOGGLE_DAY:{day_code}",
+            )
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(
+            text="✅ Готово",
+            callback_data="TASK_SCHEDULE_DAYS_DONE",
+        )
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    selected_text = f"Выбрано: {len(selected_days)}" if selected_days else "Выберите дни:"
+
+    await callback.message.edit_text(
+        f"🗓 **Создание расписания**\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_TOGGLE_DAY:"))
+async def handle_task_schedule_toggle_day(callback: CallbackQuery, state: FSMContext):
+    """Переключение выбора дня"""
+    day_code = callback.data.split(":")[1]
+    data = await state.get_data()
+    selected_days = data.get("schedule_selected_days", [])
+
+    day_name = DAYS_OF_WEEK.get(day_code, day_code)
+    
+    if day_code in selected_days:
+        selected_days.remove(day_code)
+        await callback.answer(f"❌ {day_name} убран из выбора")
+    else:
+        selected_days.append(day_code)
+        await callback.answer(f"✅ {day_name} добавлен")
+    
+    await state.update_data(schedule_selected_days=selected_days)
+    
+    # Возвращаемся к выбору дней
+    await handle_task_schedule_period_custom(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_DAYS_DONE")
+async def handle_task_schedule_days_done(callback: CallbackQuery, state: FSMContext):
+    """Дни выбраны, переходим к выбору времени"""
+    data = await state.get_data()
+    selected_days = data.get("schedule_selected_days", [])
+
+    if not selected_days:
+        await callback.answer("❌ Выберите хотя бы один день", show_alert=True)
+        return
+
+    days_names = ", ".join([DAYS_OF_WEEK.get(day, day) for day in selected_days])
+    await state.update_data(
+        schedule_days_of_week=",".join(selected_days),
+        schedule_periodicity=SchedulePeriodicity.DAILY,
+    )
+    
+    await callback.answer(f"✅ Дни выбраны: {days_names}")
+    await _show_task_schedule_time_selection(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_BACK")
+async def handle_task_schedule_period_back(callback: CallbackQuery, state: FSMContext):
+    """Возврат к выбору периодичности"""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    buttons = [
+        [
+            InlineKeyboardButton(text="📅 Каждый день", callback_data="TASK_SCHEDULE_PERIOD_DAILY"),
+        ],
+        [
+            InlineKeyboardButton(text="🏢 Будни (Пн-Пт)", callback_data="TASK_SCHEDULE_PERIOD_WEEKDAYS"),
+        ],
+        [
+            InlineKeyboardButton(text="🏖 Выходные (Сб-Вс)", callback_data="TASK_SCHEDULE_PERIOD_WEEKENDS"),
+        ],
+        [
+            InlineKeyboardButton(text="📆 Раз в неделю (выбрать день)", callback_data="TASK_SCHEDULE_PERIOD_WEEKLY"),
+        ],
+        [
+            InlineKeyboardButton(text="🗓 Выбрать конкретные дни", callback_data="TASK_SCHEDULE_PERIOD_CUSTOM"),
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(
+        "🗓 **Создание расписания для карточки**\n\n"
+        "Выберите периодичность (когда бот будет напоминать о задании):",
+        reply_markup=keyboard
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_schedule_periodicity)
+    await callback.answer()
+
+
+async def _show_task_schedule_time_selection(callback: CallbackQuery, state: FSMContext):
+    """Показ выбора времени для расписания карточки"""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    # Предопределённые времена
+    times = ["08:00", "09:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
+    
+    buttons = []
+    row = []
+    for i, time_str in enumerate(times):
+        row.append(
+            InlineKeyboardButton(
+                text=f"🕐 {time_str}",
+                callback_data=f"TASK_SCHEDULE_TIME:{time_str}",
+            )
+        )
+        if len(row) == 2 or i == len(times) - 1:
+            buttons.append(row)
+            row = []
+
+    buttons.append([
+        InlineKeyboardButton(
+            text="✏️ Ввести своё время",
+            callback_data="TASK_SCHEDULE_TIME_CUSTOM",
+        )
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(
+        "🗓 **Создание расписания**\n\n" "Выберите время отправки:",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_TIME:"))
+async def handle_task_schedule_time_selected(callback: CallbackQuery, state: FSMContext):
+    """Время выбрано из предопределённых"""
+    time_str = callback.data.replace("TASK_SCHEDULE_TIME:", "")
+    hours, minutes = map(int, time_str.split(":"))
+    schedule_time = time(hours, minutes)
+    
+    await state.update_data(schedule_time=schedule_time)
+    await callback.answer(f"✅ Время выбрано: {time_str}")
+    await _show_task_card_summary(callback, state)
+
+
+@router.callback_query(lambda c: c.data == "TASK_SCHEDULE_TIME_CUSTOM")
+async def handle_task_schedule_time_custom(callback: CallbackQuery, state: FSMContext):
+    """Запрос ввода времени"""
+    await callback.message.edit_text(
+        "🗓 **Создание расписания**\n\n"
+        "Введите время в формате HH:MM (например, 09:30):",
+        reply_markup=get_back_button_menu(),
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_schedule_time)
+    await callback.answer()
+
+
+@router.message(AddTaskTypeStates.waiting_for_schedule_time)
+async def handle_task_schedule_time_input(message: Message, state: FSMContext):
+    """Обработка введённого времени"""
+    # Удаляем сообщение пользователя сразу
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    try:
+        time_str = message.text.strip()
+        hours, minutes = map(int, time_str.split(":"))
+        if not (0 <= hours < 24 and 0 <= minutes < 60):
+            raise ValueError
+        schedule_time = time(hours, minutes)
+    except (ValueError, Exception):
+        error_msg = await message.answer(
+            "❌ Неверный формат времени. Используйте формат HH:MM (например, 09:30):",
+            reply_markup=get_back_button_menu(),
+        )
+        await asyncio.sleep(5)
+        try:
+            await error_msg.delete()
+        except Exception:
+            pass
+        return
+
+    await state.update_data(schedule_time=schedule_time)
+    
+    # Показываем summary карточки
+    await _show_task_card_summary(message, state)
+
+
+async def _show_task_card_summary(message_or_callback, state: FSMContext):
+    """Показ полного summary карточки с расписанием"""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    data = await state.get_data()
+    requires_media = data.get("task_type_requires_media", False)
+    
+    # Формируем информацию о расписании
+    periodicity = data.get("schedule_periodicity")
+    days_of_week = data.get("schedule_days_of_week", "")
+    schedule_time = data.get("schedule_time")
+    
+    if periodicity == SchedulePeriodicity.DAILY:
+        if days_of_week == ALL_DAYS:
+            schedule_text = "Каждый день"
+        elif days_of_week == WEEKDAYS:
+            schedule_text = "Будни (Пн-Пт)"
+        elif days_of_week == WEEKENDS:
+            schedule_text = "Выходные (Сб-Вс)"
+        else:
+            # Пользовательские дни
+            days_list = days_of_week.split(",")
+            days_names = [DAYS_OF_WEEK.get(day, day) for day in days_list]
+            schedule_text = ", ".join(days_names)
+    elif periodicity == SchedulePeriodicity.WEEKLY:
+        day_name = DAYS_OF_WEEK.get(days_of_week, days_of_week)
+        schedule_text = f"Раз в неделю ({day_name})"
+    else:
+        schedule_text = "Не указано"
+    
+    time_str = schedule_time.strftime("%H:%M") if schedule_time else "не указано"
+    
     summary_text = (
         f"📝 **Проверка данных карточки задания**\n\n"
         f"📋 **Название:** {data['task_type_name']}\n"
-        f"📝 **Описание:** {data.get('task_type_description')}\n"
+        f"📝 **Описание:** {data.get('task_type_description') or 'не указано'}\n"
         f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
-        f"💰 **Стоимость:** {data['task_type_reward_amount']} ARS\n"
-        f"📸 **Отчёт:** {'требуется' if requires_media else 'не требуется'}\n\n"
-        f"❓ **Подтверждаете создание карточки?**"
+        f"💰 **Стоимость:** {data.get('task_type_reward_amount')} ARS\n"
+        f"📸 **Отчёт:** {'требуется' if requires_media else 'не требуется'}\n"
+        f"🗓 **Расписание:** {schedule_text}\n"
+        f"🕐 **Время отправки:** {time_str}\n\n"
+        f"Подтверждаете создание карточки?"
     )
 
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     buttons = [
         [
             InlineKeyboardButton(text="✅ Да, создать карточку", callback_data="CONFIRM_CREATE_TASK"),
@@ -269,14 +610,19 @@ async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    await callback.message.edit_text(summary_text, reply_markup=keyboard)
+    if isinstance(message_or_callback, Message):
+        await message_or_callback.answer(summary_text, reply_markup=keyboard)
+    else:
+        await message_or_callback.message.edit_text(summary_text, reply_markup=keyboard)
+    
     await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
 
 
 @router.callback_query(lambda c: c.data == "CONFIRM_CREATE_TASK")
 async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение создания карточки"""
+    """Финальное создание карточки задания"""
     data = await state.get_data()
+    requires_media = data.get("task_type_requires_media", False)
 
     # Сохранение типа задания в БД
     async with AsyncSessionLocal() as session:
@@ -287,12 +633,30 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
             description=data.get("task_type_description"),
             category=category,
             execution_time=data.get("task_type_execution_time"),
-            requires_media=data.get("task_type_requires_media", False),
+            requires_media=requires_media,
             is_active=True,
         )
         session.add(task_type)
         await session.commit()
         await session.refresh(task_type)
+
+        # Сохранение расписания в БД
+        schedule_periodicity = data.get("schedule_periodicity")
+        schedule_days_of_week = data.get("schedule_days_of_week", "")
+        schedule_time = data.get("schedule_time")
+        
+        if schedule_periodicity and schedule_days_of_week and schedule_time:
+            schedule = Schedule(
+                task_type_id=task_type.id,
+                periodicity=schedule_periodicity,
+                time_of_day=schedule_time,
+                days_of_week=schedule_days_of_week,
+                target_scope=TargetScope.ALL_CHILDREN,  # По умолчанию для всех детей
+                target_children_ids=None,
+                is_active=True,
+            )
+            session.add(schedule)
+            await session.commit()
 
     # Показываем успешное сообщение
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -315,7 +679,7 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
         f"📝 {task_type.description}\n"
         f"⏱ {task_type.execution_time} минут\n"
         f"💰 Стоимость: {data['task_type_reward_amount']} ARS\n"
-        f"📸 Отчёт: {'требуется' if data.get('task_type_requires_media') else 'не требуется'}\n"
+        f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
         f"🆔 ID: {task_type.id}"
     )
 
@@ -325,52 +689,18 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
 
 @router.callback_query(lambda c: c.data == "RESTART_TASK_CREATION")
 async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContext):
-    """Перезапуск создания карточки"""
+    """Перезапуск создания карточки задания"""
     await state.clear()
-
     await callback.message.edit_text(
-        "🔄 **Создание карточки отменено**\n\n"
-        "➕ **Создать новую карточку задания**\n\n"
-        "Введите название задания:",
+        "➕ **Создать новую карточку задания**\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
+    await callback.answer("Создание карточки начато заново")
 
 
 
 
-
-
-
-
-# Удален старый хэндлер
-async def handle_task_type_frequency_text(message: Message, state: FSMContext):
-    """Обработка ввода частотности вручную (для custom)"""
-    # Удаляем сообщение пользователя сразу
-    try:
-        await message.delete()
-    except Exception:
-        pass
-    
-    frequency = message.text.strip()
-    if not frequency or len(frequency) > 50:
-         error_msg = await message.answer(
-            "❌ Слишком длинный текст. Введите кратко (до 50 символов):",
-            reply_markup=get_back_button_menu(),
-        )
-         await asyncio.sleep(5)
-         try: await error_msg.delete() 
-         except: pass
-         return
-    
-    await state.update_data(task_type_frequency=frequency)
-
-    await message.answer(
-        "💰 **Стоимость выполнения**\n\n"
-        "Введите сумму вознаграждения за это задание (число, например: 1000):",
-        reply_markup=get_back_button_menu()
-    )
-    await state.set_state(AddTaskTypeStates.waiting_for_reward_amount)
 
 
 # ========== Обработчики для ставок ==========
