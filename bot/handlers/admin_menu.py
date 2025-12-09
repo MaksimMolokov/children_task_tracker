@@ -179,6 +179,21 @@ async def handle_children(callback: CallbackQuery):
 
 
 
+@router.callback_query(lambda c: c.data == "ADMIN_REWARDS")
+async def handle_rewards_menu(callback: CallbackQuery):
+    """
+    Обработка "🗂 Карточки заданий".
+    Показывает меню с двумя кнопками: Список карточек и Создать новую.
+    """
+    from bot.keyboards.admin import get_admin_rewards_menu
+
+    await callback.message.edit_text(
+        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
+        reply_markup=get_admin_rewards_menu(),
+    )
+    await callback.answer()
+
+
 @router.callback_query(lambda c: c.data == "ADMIN_REPORTS")
 async def handle_reports(callback: CallbackQuery):
     """
