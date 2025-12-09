@@ -215,85 +215,35 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     # Сохраняем сумму в стейт
     await state.update_data(task_type_reward_amount=amount)
 
-    await message.answer(
-        f"✅ Стоимость сохранена: {amount} ARS\n\n"
-        f"📸 Нужно ли прикладывать отчёт по выполнению? (да/нет):",
-        reply_markup=get_back_button_menu(),
-    )
-    await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
-
-
-@router.message(AddTaskTypeStates.waiting_for_confirmation)
-async def handle_task_type_confirm(message: Message, state: FSMContext):
-    """Обработка ответа про отчет и создание задания"""
-    # Удаляем сообщение пользователя сразу
-    try:
-        await message.delete()
-    except Exception:
-        pass
-
-    text = message.text.strip().lower()
-
-    # Валидация ответа
-    if text not in ["да", "yes", "д", "y", "1", "true", "нет", "no", "н", "n", "0", "false"]:
-        error_msg = await message.answer(
-            "❌ Пожалуйста, ответьте 'да' или 'нет' на вопрос о необходимости отчёта:",
-            reply_markup=get_back_button_menu(),
-        )
-        await asyncio.sleep(5)
-        try: await error_msg.delete()
-        except: pass
-        return
-
-    requires_media = text in ["да", "yes", "д", "y", "1", "true"]
-
+    # Предпросмотр и выбор типа отчета
     data = await state.get_data()
-    reward_amount = data["task_type_reward_amount"]
+    category = data.get("task_type_category", TaskCategory.OTHER)
 
-    # Сохранение типа задания в БД
-    async with AsyncSessionLocal() as session:
-        # Категория по умолчанию
-        category = data.get("task_type_category", TaskCategory.OTHER)
+    summary_text = (
+        f"📝 **Предпросмотр карточки задания**\n\n"
+        f"📋 **Название:** {data['task_type_name']}\n"
+        f"📝 **Описание:** {data.get('task_type_description')}\n"
+        f"📂 **Категория:** {category.value}\n"
+        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
+        f"💰 **Стоимость:** {amount} ARS\n\n"
+        f"Выберите, требуется ли отчёт по выполнению:"
+    )
 
-        task_type = TaskType(
-            name=data["task_type_name"],
-            description=data.get("task_type_description"),
-            category=category,
-            execution_time=data.get("task_type_execution_time"),
-            requires_media=requires_media,
-            is_active=True,
-        )
-        session.add(task_type)
-        await session.commit()
-        await session.refresh(task_type)
-
-    # Показываем успешное сообщение
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     buttons = [
         [
-            InlineKeyboardButton(
-                text="📋 К списку заданий",
-                callback_data="ADMIN_TASK_TYPE_LIST",
-            )
+            InlineKeyboardButton(text="📸 Создать с отчётом", callback_data="CREATE_WITH_REPORT"),
+            InlineKeyboardButton(text="✅ Создать без отчёта", callback_data="CREATE_WITHOUT_REPORT"),
         ],
         [
-            InlineKeyboardButton(text="⬅️ В меню", callback_data="ADMIN_REWARDS")
+            InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
         ]
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    text = (
-        f"✅ **Карточка задания успешно создана!**\n\n"
-        f"📋 **{task_type.name}**\n"
-        f"📝 {task_type.description}\n"
-        f"⏱ {task_type.execution_time} минут\n"
-        f"💰 Стоимость: {reward_amount} ARS\n"
-        f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
-        f"🆔 ID: {task_type.id}"
-    )
+    await message.answer(summary_text, reply_markup=keyboard)
 
-    await message.answer(text, reply_markup=keyboard)
-    await state.clear()
+
 
 
 

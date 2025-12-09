@@ -17,7 +17,6 @@ class AddTaskTypeStates(StatesGroup):
     waiting_for_description = State()
     waiting_for_execution_time = State()
     waiting_for_reward_amount = State()
-    waiting_for_confirmation = State()
 
 
 class SetRewardStates(StatesGroup):
