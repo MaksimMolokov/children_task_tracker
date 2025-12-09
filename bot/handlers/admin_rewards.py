@@ -215,25 +215,12 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     # Сохраняем сумму в стейт
     await state.update_data(task_type_reward_amount=amount)
 
-    # Предпросмотр и выбор типа отчета
-    data = await state.get_data()
-    category = data.get("task_type_category", TaskCategory.OTHER)
-
-    summary_text = (
-        f"📝 **Предпросмотр карточки задания**\n\n"
-        f"📋 **Название:** {data['task_type_name']}\n"
-        f"📝 **Описание:** {data.get('task_type_description')}\n"
-        f"📂 **Категория:** {category.value}\n"
-        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
-        f"💰 **Стоимость:** {amount} ARS\n\n"
-        f"Выберите, требуется ли отчёт по выполнению:"
-    )
-
+    # Спрашиваем про отчет кнопками
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     buttons = [
         [
-            InlineKeyboardButton(text="📸 Создать с отчётом", callback_data="CREATE_WITH_REPORT"),
-            InlineKeyboardButton(text="✅ Создать без отчёта", callback_data="CREATE_WITHOUT_REPORT"),
+            InlineKeyboardButton(text="📸 Да, нужен отчёт", callback_data="REPORT_YES"),
+            InlineKeyboardButton(text="✅ Нет, отчёт не нужен", callback_data="REPORT_NO"),
         ],
         [
             InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
@@ -241,7 +228,113 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    await message.answer(summary_text, reply_markup=keyboard)
+    await message.answer(
+        f"✅ Стоимость сохранена: {amount} ARS\n\n"
+        f"📸 Нужен ли отчёт по выполнению задания?",
+        reply_markup=keyboard
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_report_choice)
+
+
+@router.callback_query(lambda c: c.data in ["REPORT_YES", "REPORT_NO"])
+async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора необходимости отчета"""
+    requires_media = callback.data == "REPORT_YES"
+    await state.update_data(task_type_requires_media=requires_media)
+
+    # Показываем summary для подтверждения
+    data = await state.get_data()
+
+    summary_text = (
+        f"📝 **Проверка данных карточки задания**\n\n"
+        f"📋 **Название:** {data['task_type_name']}\n"
+        f"📝 **Описание:** {data.get('task_type_description')}\n"
+        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
+        f"💰 **Стоимость:** {data['task_type_reward_amount']} ARS\n"
+        f"📸 **Отчёт:** {'требуется' if requires_media else 'не требуется'}\n\n"
+        f"❓ **Подтверждаете создание карточки?**"
+    )
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    buttons = [
+        [
+            InlineKeyboardButton(text="✅ Да, создать карточку", callback_data="CONFIRM_CREATE_TASK"),
+        ],
+        [
+            InlineKeyboardButton(text="❌ Нет, начать заново", callback_data="RESTART_TASK_CREATION"),
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(summary_text, reply_markup=keyboard)
+    await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
+
+
+@router.callback_query(lambda c: c.data == "CONFIRM_CREATE_TASK")
+async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение создания карточки"""
+    data = await state.get_data()
+
+    # Сохранение типа задания в БД
+    async with AsyncSessionLocal() as session:
+        category = data.get("task_type_category", TaskCategory.OTHER)
+
+        task_type = TaskType(
+            name=data["task_type_name"],
+            description=data.get("task_type_description"),
+            category=category,
+            execution_time=data.get("task_type_execution_time"),
+            requires_media=data.get("task_type_requires_media", False),
+            is_active=True,
+        )
+        session.add(task_type)
+        await session.commit()
+        await session.refresh(task_type)
+
+    # Показываем успешное сообщение
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="📋 К списку заданий",
+                callback_data="ADMIN_TASK_TYPE_LIST",
+            )
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ В меню", callback_data="ADMIN_REWARDS")
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    result_text = (
+        f"✅ **Карточка задания успешно создана!**\n\n"
+        f"📋 **{task_type.name}**\n"
+        f"📝 {task_type.description}\n"
+        f"⏱ {task_type.execution_time} минут\n"
+        f"💰 Стоимость: {data['task_type_reward_amount']} ARS\n"
+        f"📸 Отчёт: {'требуется' if data.get('task_type_requires_media') else 'не требуется'}\n"
+        f"🆔 ID: {task_type.id}"
+    )
+
+    await callback.message.edit_text(result_text, reply_markup=keyboard)
+    await state.clear()
+
+
+@router.callback_query(lambda c: c.data == "RESTART_TASK_CREATION")
+async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContext):
+    """Перезапуск создания карточки"""
+    await state.clear()
+
+    await callback.message.edit_text(
+        "🔄 **Создание карточки отменено**\n\n"
+        "➕ **Создать новую карточку задания**\n\n"
+        "Введите название задания:",
+        reply_markup=get_back_button_menu(),
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_name)
 
 
 
