@@ -1,0 +1,5 @@
+# Эта директория будет содержать файлы миграций Alembic
+# После запуска команды `alembic revision --autogenerate -m "Initial migration"`
+# здесь появятся файлы миграций
+
+
