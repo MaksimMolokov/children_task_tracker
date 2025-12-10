@@ -4,8 +4,10 @@
 """
 import logging
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from aiogram import Router
+from sqlalchemy.orm import selectinload
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -114,7 +116,9 @@ async def handle_check_today_by_child(callback: CallbackQuery):
     async with AsyncSessionLocal() as session:
         today = date.today()
         result = await session.execute(
-            select(Task).where(Task.scheduled_date == today)
+            select(Task)
+            .options(selectinload(Task.child), selectinload(Task.task_type))
+            .where(Task.scheduled_date == today)
         )
         tasks = result.scalars().all()
 
@@ -191,33 +195,405 @@ async def handle_reports(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "ADMIN_REPORT_TODAY")
-async def handle_report_today(callback: CallbackQuery):
-    """Отчёт за сегодня"""
-    # TODO: Реализовать формирование отчёта
+@router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_TODAY")
+async def handle_report_period_today(callback: CallbackQuery):
+    """Выбран период 'сегодня' - показываем меню типа отчета"""
+    from bot.keyboards.admin import get_admin_report_type_menu
+    await callback.message.edit_text(
+        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        reply_markup=get_admin_report_type_menu("today"),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_YESTERDAY")
+async def handle_report_period_yesterday(callback: CallbackQuery):
+    """Выбран период 'вчера' - показываем меню типа отчета"""
+    from bot.keyboards.admin import get_admin_report_type_menu
+    await callback.message.edit_text(
+        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        reply_markup=get_admin_report_type_menu("yesterday"),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_WEEK")
+async def handle_report_period_week(callback: CallbackQuery):
+    """Выбран период 'за неделю' - показываем меню типа отчета"""
+    from bot.keyboards.admin import get_admin_report_type_menu
+    await callback.message.edit_text(
+        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        reply_markup=get_admin_report_type_menu("week"),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_REPORT_TOTAL:"))
+async def handle_report_total(callback: CallbackQuery):
+    """Обработка выбора 'Итого' - отчет по всем детям"""
+    period = callback.data.split(":")[1]  # "today", "yesterday", "week"
+    
     from bot.services.report_service import ReportService
     from db.database import AsyncSessionLocal
-
+    from datetime import date, timedelta
+    
     async with AsyncSessionLocal() as session:
-        today = date.today()
-        report_text = await ReportService.format_daily_report_text(session, today)
+        if period == "today":
+            report_date = date.today()
+            report = await ReportService.generate_daily_report(session, report_date)
+            
+            # Проверка на пустой отчет
+            if not report:
+                await callback.message.answer(
+                    f"📊 **Отчет за сегодня**\n\n"
+                    f"Нет данных за выбранный период."
+                )
+                await callback.answer("Отчёт пуст")
+                return
+            
+            # Отправляем отчет по каждому ребенку отдельным сообщением
+            for child_id, child_data in report.items():
+                child_report_text = (
+                    f"📊 **Отчет за сегодня**\n\n"
+                    f"👦 **{child_data['child_name']}**\n\n"
+                )
+                
+                for task_info in child_data["tasks"]:
+                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
+                    media_icon = "📸" if task_info["has_media"] else ""
+                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
+                    child_report_text += (
+                        f"– {task_info['task_type_name']} — {status_emoji} "
+                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
+                    )
+                
+                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
+                child_report_text += (
+                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
+                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                )
+                await callback.message.answer(child_report_text)
+            
+            await callback.answer("Отчёты отправлены")
+            
+        elif period == "yesterday":
+            report_date = date.today() - timedelta(days=1)
+            report = await ReportService.generate_daily_report(session, report_date)
+            
+            # Проверка на пустой отчет
+            if not report:
+                await callback.message.answer(
+                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
+                    f"Нет данных за выбранный период."
+                )
+                await callback.answer("Отчёт пуст")
+                return
+            
+            # Отправляем отчет по каждому ребенку отдельным сообщением
+            for child_id, child_data in report.items():
+                child_report_text = (
+                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
+                    f"👦 **{child_data['child_name']}**\n\n"
+                )
+                
+                for task_info in child_data["tasks"]:
+                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
+                    media_icon = "📸" if task_info["has_media"] else ""
+                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
+                    child_report_text += (
+                        f"– {task_info['task_type_name']} — {status_emoji} "
+                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
+                    )
+                
+                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
+                child_report_text += (
+                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
+                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                )
+                await callback.message.answer(child_report_text)
+            
+            await callback.answer("Отчёты отправлены")
+            
+        elif period == "week":
+            # За неделю - разбивка по дням, по каждому ребенку отдельное сообщение для каждого дня
+            week_start = date.today() - timedelta(days=6)  # Последние 7 дней
+            week_end = date.today()
+            
+            has_any_data = False
+            
+            # Получаем отчет за каждый день недели
+            for day_offset in range(7):
+                current_date = week_start + timedelta(days=day_offset)
+                report = await ReportService.generate_daily_report(session, current_date)
+                
+                if report:  # Если есть данные за этот день
+                    has_any_data = True
+                    for child_id, child_data in report.items():
+                        child_report_text = (
+                            f"📊 **Отчет за {current_date.strftime('%d.%m.%Y')}**\n\n"
+                            f"👦 **{child_data['child_name']}**\n\n"
+                        )
+                        
+                        for task_info in child_data["tasks"]:
+                            status_emoji = "✅" if task_info["status"] == "done" else "❌"
+                            media_icon = "📸" if task_info["has_media"] else ""
+                            time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
+                            child_report_text += (
+                                f"– {task_info['task_type_name']} — {status_emoji} "
+                                f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
+                            )
+                        
+                        total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
+                        child_report_text += (
+                            f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
+                            f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                        )
+                        await callback.message.answer(child_report_text)
+            
+            # Проверка на пустой отчет за всю неделю
+            if not has_any_data:
+                await callback.message.answer(
+                    f"📊 **Отчет за неделю**\n"
+                    f"({week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')})\n\n"
+                    f"Нет данных за выбранный период."
+                )
+                await callback.answer("Отчёт пуст")
+                return
+            
+            await callback.answer("Отчёты за неделю отправлены")
 
-    await callback.message.answer(report_text)
-    await callback.answer("Отчёт отправлен")
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_REPORT_BY_CHILD:"))
+async def handle_report_by_child(callback: CallbackQuery):
+    """Обработка выбора 'По детям' - показываем список детей"""
+    period = callback.data.split(":")[1]  # "today", "yesterday", "week"
+    
+    from db.database import AsyncSessionLocal
+    from db.models import User, UserRole
+    from sqlalchemy import select
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    async with AsyncSessionLocal() as session:
+        # Получаем список активных детей
+        result = await session.execute(
+            select(User).where(User.role == UserRole.CHILD, User.is_active == True)
+        )
+        children = result.scalars().all()
+        
+        if not children:
+            await callback.answer("Нет активных детей", show_alert=True)
+            return
+        
+        buttons = []
+        for child in children:
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"👦 {child.display_name}",
+                    callback_data=f"ADMIN_REPORT_CHILD:{period}:{child.id}",
+                )
+            ])
+        # Формируем правильный callback для возврата
+        period_callbacks = {
+            "today": "ADMIN_REPORT_PERIOD_TODAY",
+            "yesterday": "ADMIN_REPORT_PERIOD_YESTERDAY",
+            "week": "ADMIN_REPORT_PERIOD_WEEK"
+        }
+        back_callback = period_callbacks.get(period, "ADMIN_REPORTS")
+        
+        buttons.append([
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)
+        ])
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        
+        period_text = {"today": "сегодня", "yesterday": "вчера", "week": "за неделю"}.get(period, period)
+        
+        await callback.message.edit_text(
+            f"📊 **Отчёты**\n\n"
+            f"Период: {period_text}\n\n"
+            f"Выберите ребёнка:",
+            reply_markup=keyboard,
+        )
+        await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "ADMIN_REPORT_YESTERDAY")
-async def handle_report_yesterday(callback: CallbackQuery):
-    """Отчёт за вчера"""
+@router.callback_query(lambda c: c.data.startswith("ADMIN_REPORT_CHILD:"))
+async def handle_report_child_selected(callback: CallbackQuery):
+    """Обработка выбора ребенка для отчета"""
+    parts = callback.data.split(":")
+    period = parts[1]  # "today", "yesterday", "week"
+    child_id = int(parts[2])
+    
     from bot.services.report_service import ReportService
     from db.database import AsyncSessionLocal
-
+    from db.models import User, Task, TaskStatus
+    from sqlalchemy import select
+    from datetime import date, timedelta
+    
     async with AsyncSessionLocal() as session:
-        yesterday = date.today() - timedelta(days=1)
-        report_text = await ReportService.format_daily_report_text(session, yesterday)
-
-    await callback.message.answer(report_text)
-    await callback.answer("Отчёт отправлен")
+        child = await session.get(User, child_id)
+        if not child:
+            await callback.answer("Ребёнок не найден", show_alert=True)
+            return
+        
+        if period == "today":
+            report_date = date.today()
+            report = await ReportService.generate_daily_report(session, report_date)
+            child_data = report.get(child_id)
+            
+            if not child_data:
+                await callback.message.answer(
+                    f"📊 **Отчет за сегодня**\n\n"
+                    f"👦 **{child.display_name}**\n\n"
+                    f"Нет заданий за этот день."
+                )
+            else:
+                report_text = (
+                    f"📊 **Отчет за сегодня**\n\n"
+                    f"👦 **{child_data['child_name']}**\n\n"
+                )
+                
+                for task_info in child_data["tasks"]:
+                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
+                    media_icon = "📸" if task_info["has_media"] else ""
+                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
+                    report_text += (
+                        f"– {task_info['task_type_name']} — {status_emoji} "
+                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
+                    )
+                
+                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
+                report_text += (
+                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
+                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                )
+                await callback.message.answer(report_text)
+            
+            await callback.answer("Отчёт отправлен")
+            
+        elif period == "yesterday":
+            report_date = date.today() - timedelta(days=1)
+            report = await ReportService.generate_daily_report(session, report_date)
+            child_data = report.get(child_id)
+            
+            if not child_data:
+                await callback.message.answer(
+                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
+                    f"👦 **{child.display_name}**\n\n"
+                    f"Нет заданий за этот день."
+                )
+            else:
+                report_text = (
+                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
+                    f"👦 **{child_data['child_name']}**\n\n"
+                )
+                
+                for task_info in child_data["tasks"]:
+                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
+                    media_icon = "📸" if task_info["has_media"] else ""
+                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
+                    report_text += (
+                        f"– {task_info['task_type_name']} — {status_emoji} "
+                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
+                    )
+                
+                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
+                report_text += (
+                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
+                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                )
+                await callback.message.answer(report_text)
+            
+            await callback.answer("Отчёт отправлен")
+            
+        elif period == "week":
+            # Отчет за неделю по конкретному ребенку
+            week_start = date.today() - timedelta(days=6)
+            week_end = date.today()
+            
+            # Получаем все задачи ребенка за неделю
+            result = await session.execute(
+                select(Task)
+                .options(selectinload(Task.task_type))
+                .where(
+                    Task.child_id == child_id,
+                    Task.scheduled_date >= week_start,
+                    Task.scheduled_date <= week_end
+                ).order_by(Task.scheduled_date)
+            )
+            tasks = result.scalars().all()
+            
+            if not tasks:
+                await callback.message.answer(
+                    f"📊 **Отчет за неделю**\n\n"
+                    f"👦 **{child.display_name}**\n\n"
+                    f"Нет заданий за этот период."
+                )
+            else:
+                # Группируем по дням
+                tasks_by_date = {}
+                total_week = Decimal("0.00")
+                total_time_week = 0
+                
+                from db.models import TaskMedia
+                
+                for task in tasks:
+                    task_date = task.scheduled_date
+                    if task_date not in tasks_by_date:
+                        tasks_by_date[task_date] = []
+                    tasks_by_date[task_date].append(task)
+                    if task.status == TaskStatus.DONE:
+                        total_week += task.reward_amount
+                        total_time_week += task.task_type.execution_time or 0
+                
+                # Формируем отчет по дням
+                report_text = (
+                    f"📊 **Отчет за неделю**\n"
+                    f"({week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')})\n\n"
+                    f"👦 **{child.display_name}**\n\n"
+                )
+                
+                from db.models import TaskMedia
+                
+                for task_date in sorted(tasks_by_date.keys()):
+                    day_tasks = tasks_by_date[task_date]
+                    day_total = sum(t.reward_amount for t in day_tasks if t.status == TaskStatus.DONE)
+                    day_total_time = sum(t.task_type.execution_time or 0 for t in day_tasks if t.status == TaskStatus.DONE)
+                    
+                    report_text += f"📅 **{task_date.strftime('%d.%m.%Y')}**\n"
+                    for task in day_tasks:
+                        status_emoji = "✅" if task.status == TaskStatus.DONE else "❌"
+                        reward = task.reward_amount if task.status == TaskStatus.DONE else Decimal("0.00")
+                        execution_time = task.task_type.execution_time or 0
+                        time_text = f" ({execution_time} мин)" if execution_time > 0 and task.status == TaskStatus.DONE else ""
+                        
+                        # Проверяем наличие медиа
+                        media_result = await session.execute(
+                            select(TaskMedia).where(TaskMedia.task_id == task.id)
+                        )
+                        has_media = media_result.scalar_one_or_none() is not None
+                        media_icon = "📸" if has_media else ""
+                        
+                        report_text += (
+                            f"– {task.task_type.name} — {status_emoji} "
+                            f"{reward} ARS{time_text} {media_icon}\n"
+                        )
+                    
+                    day_time_text = f"{day_total_time} минут" if day_total_time > 0 else "0 минут"
+                    report_text += (
+                        f"⏱ Общее время за день: {day_time_text}\n"
+                        f"💰 Итого за день: {day_total} ARS\n\n"
+                    )
+                
+                total_time_text = f"{total_time_week} минут" if total_time_week > 0 else "0 минут"
+                report_text += (
+                    f"⏱ **Общее время выполнения за неделю: {total_time_text}**\n"
+                    f"💰 **Сумма за выполненные задания за неделю: {total_week} ARS**"
+                )
+                await callback.message.answer(report_text)
+            
+            await callback.answer("Отчёт отправлен")
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_LEADERS")

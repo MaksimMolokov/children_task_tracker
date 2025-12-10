@@ -197,7 +197,8 @@ async def handle_child_telegram_id(message: Message, state: FSMContext):
                 )
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHILDREN")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHILDREN"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ]
         ]
     )
@@ -264,7 +265,8 @@ async def handle_child_list(callback: CallbackQuery):
             
             # Кнопка "Назад"
             buttons.append([
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHILDREN")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHILDREN"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ])
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -275,10 +277,11 @@ async def handle_child_list(callback: CallbackQuery):
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_CHILD_DELETE:"))
 async def handle_child_delete(callback: CallbackQuery):
-    """Удаление ребёнка"""
+    """Полное удаление ребёнка и всех связанных данных"""
     child_id = int(callback.data.split(":")[1])
-    from sqlalchemy import select
+    from sqlalchemy import select, delete
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    from db.models import Task, TaskMedia, ChildTaskReward
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -291,11 +294,41 @@ async def handle_child_delete(callback: CallbackQuery):
             return
 
         child_name = child.display_name
-        # Мягкое удаление - помечаем как неактивного
-        child.is_active = False
+        
+        # Получаем все задания ребенка
+        tasks_result = await session.execute(
+            select(Task).where(Task.child_id == child_id)
+        )
+        tasks = tasks_result.scalars().all()
+        
+        # Удаляем все медиа заданий ребенка
+        task_ids = [task.id for task in tasks]
+        if task_ids:
+            await session.execute(
+                delete(TaskMedia).where(TaskMedia.task_id.in_(task_ids))
+            )
+            logger.info(f"Deleted {len(task_ids)} TaskMedia records for child {child_id}")
+        
+        # Удаляем все задания ребенка
+        if tasks:
+            await session.execute(
+                delete(Task).where(Task.child_id == child_id)
+            )
+            logger.info(f"Deleted {len(tasks)} Task records for child {child_id}")
+        
+        # Удаляем все ставки (награды) для ребенка
+        await session.execute(
+            delete(ChildTaskReward).where(ChildTaskReward.child_id == child_id)
+        )
+        logger.info(f"Deleted ChildTaskReward records for child {child_id}")
+        
+        # Удаляем самого ребенка
+        await session.delete(child)
         await session.commit()
+        
+        logger.info(f"Completely deleted child {child_id} ({child_name}) and all related data")
 
-    await callback.answer(f"Ребёнок {child_name} удалён (деактивирован)", show_alert=True)
+    await callback.answer(f"Ребёнок {child_name} и вся связанная информация полностью удалены", show_alert=True)
     
     # Обновляем список
     await handle_child_list(callback)

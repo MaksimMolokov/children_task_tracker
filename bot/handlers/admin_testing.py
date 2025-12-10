@@ -60,7 +60,8 @@ async def handle_testing_menu(callback: CallbackQuery):
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN)
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)
         ])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -110,7 +111,8 @@ async def handle_test_child_selected(callback: CallbackQuery, state: FSMContext)
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)
         ])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -225,7 +227,8 @@ async def handle_test_task_type_selected(callback: CallbackQuery, state: FSMCont
                     )
                 ],
                 [
-                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING"),
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)
                 ],
             ]
             
@@ -279,7 +282,8 @@ async def handle_test_task_type_selected(callback: CallbackQuery, state: FSMCont
                     )
                 ],
                 [
-                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_TESTING"),
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)
                 ],
             ]
             keyboard_error = InlineKeyboardMarkup(inline_keyboard=buttons)

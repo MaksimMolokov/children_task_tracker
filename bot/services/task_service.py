@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import ChildTaskReward, Task, TaskStatus, User
+from db.models import ChildTaskReward, Task, TaskStatus, TaskType, User
 
 
 class TaskService:
@@ -50,8 +50,18 @@ class TaskService:
             )
         )
         reward = reward_result.scalar_one_or_none()
-        reward_amount = reward.reward_amount if reward else Decimal("0.00")
-        currency = reward.currency if reward else "ARS"
+        
+        if reward:
+            reward_amount = reward.reward_amount
+            currency = reward.currency
+        else:
+            # Если индивидуальной ставки нет, берем из типа задания
+            task_type_res = await session.execute(
+                select(TaskType).where(TaskType.id == task_type_id)
+            )
+            task_type_obj = task_type_res.scalar_one()
+            reward_amount = task_type_obj.reward_amount or Decimal("0.00")
+            currency = "ARS"
 
         # Создание задачи
         task = Task(

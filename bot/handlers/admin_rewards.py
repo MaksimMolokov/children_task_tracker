@@ -314,7 +314,8 @@ async def handle_task_schedule_period_weekly(callback: CallbackQuery, state: FSM
             )
         ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -365,7 +366,8 @@ async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSM
         )
     ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -484,7 +486,8 @@ async def _show_task_schedule_time_selection(callback: CallbackQuery, state: FSM
         )
     ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="TASK_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -633,6 +636,7 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
             description=data.get("task_type_description"),
             category=category,
             execution_time=data.get("task_type_execution_time"),
+            reward_amount=data.get("task_type_reward_amount", Decimal("0.00")),
             requires_media=requires_media,
             is_active=True,
         )
@@ -736,7 +740,8 @@ async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMCont
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -801,7 +806,8 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -845,7 +851,8 @@ async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSM
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -910,7 +917,8 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад в меню ставок", callback_data="ADMIN_REWARDS")
+            InlineKeyboardButton(text="⬅️ Назад в меню ставок", callback_data="ADMIN_REWARDS"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)

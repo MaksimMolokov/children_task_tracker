@@ -71,7 +71,8 @@ async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULES")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULES"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -126,7 +127,8 @@ async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMCont
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_ADD")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_ADD"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -202,7 +204,8 @@ async def handle_schedule_task_type_selected(callback: CallbackQuery, state: FSM
             )
         ],
         [
-            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_SCHEDULE_CHILD:{child.id}")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_SCHEDULE_CHILD:{child.id}"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ],
     ]
 
@@ -268,7 +271,8 @@ async def handle_schedule_period_weekly(callback: CallbackQuery, state: FSMConte
             )
         ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -319,7 +323,8 @@ async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMConte
         )
     ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -423,7 +428,8 @@ async def _show_time_selection(callback: CallbackQuery, state: FSMContext):
         )
     ])
     buttons.append([
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -720,7 +726,8 @@ async def handle_schedule_list(callback: CallbackQuery):
 
             # Кнопка "Назад"
             buttons.append([
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULES")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULES"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ])
 
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)

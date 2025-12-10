@@ -45,7 +45,8 @@ async def handle_assign_task_list(callback: CallbackQuery):
             text = "📋 **Назначить задание**\n\n" "Карточки заданий ещё не созданы."
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN"),
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
                 ]
             ])
         else:
@@ -71,7 +72,8 @@ async def handle_assign_task_list(callback: CallbackQuery):
             text = "\n".join(lines)
 
             buttons.append([
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ])
 
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -126,11 +128,13 @@ async def handle_assign_task_select(callback: CallbackQuery):
             time_str = schedule.time_of_day.strftime("%H:%M") if schedule.time_of_day else "не указано"
             schedule_text = f"{schedule_text}, время: {time_str}"
 
+        reward_text = f"{task_type.reward_amount} ARS" if task_type.reward_amount else "не указано"
+
         text = (
             f"📋 **Карточка задания: {task_type.name}**\n\n"
             f"📝 **Описание:** {task_type.description or 'не указано'}\n"
             f"⏱ **Время выполнения:** {exec_time}\n"
-            f"💰 **Стоимость:** (будет установлена при назначении)\n"
+            f"💰 **Стоимость (базовая):** {reward_text}\n"
             f"📸 **Отчёт:** {media_text}\n"
             f"🗓 **Расписание:** {schedule_text}\n\n"
             f"Продолжить назначение этого задания?"
@@ -142,7 +146,8 @@ async def handle_assign_task_select(callback: CallbackQuery):
                 InlineKeyboardButton(text="✅ ОК", callback_data=f"ADMIN_ASSIGN_TASK_OK:{task_type_id}"),
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_ASSIGN_TASK_LIST")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_ASSIGN_TASK_LIST"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ]
         ]
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -184,7 +189,8 @@ async def handle_assign_task_ok(callback: CallbackQuery):
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_ASSIGN_TASK_SELECT:{task_type_id}")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_ASSIGN_TASK_SELECT:{task_type_id}"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -226,7 +232,8 @@ async def handle_assign_task_child_selected(callback: CallbackQuery):
                 )
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_ASSIGN_TASK_OK:{task_type_id}")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_ASSIGN_TASK_OK:{task_type_id}"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ]
         ]
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -256,7 +263,8 @@ async def handle_task_type_list(callback: CallbackQuery):
                     )
                 ],
                 [
-                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
+                    InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
                 ]
             ])
         else:
@@ -296,7 +304,8 @@ async def handle_task_type_list(callback: CallbackQuery):
 
             # Кнопка "Назад"
             buttons.append([
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
             ])
 
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -373,7 +382,8 @@ async def handle_task_type_assign(callback: CallbackQuery):
                 )
             ])
         buttons.append([
-            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_TASK_TYPE_SELECT:{task_type.id}")
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_TASK_TYPE_SELECT:{task_type.id}"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -420,7 +430,7 @@ async def handle_assign_task_do(callback: CallbackQuery):
             await callback.answer("Это задание уже назначено ребёнку на сегодня!", show_alert=True)
             return
 
-        # Получаем награду для этого ребёнка и типа задания
+        # Получаем награду для этого ребёнка и типа задания (или дефолтную)
         reward_res = await session.execute(
             select(ChildTaskReward).where(
                 ChildTaskReward.child_id == child_id,
@@ -428,7 +438,7 @@ async def handle_assign_task_do(callback: CallbackQuery):
             )
         )
         reward = reward_res.scalar_one_or_none()
-        reward_amount = reward.reward_amount if reward else Decimal(0)
+        reward_amount = reward.reward_amount if reward else (task_type.reward_amount or Decimal(0))
 
         # Создаем задачу
         task = Task(
@@ -442,6 +452,14 @@ async def handle_assign_task_do(callback: CallbackQuery):
         session.add(task)
         await session.commit()
         await session.refresh(task)
+        
+        # Логирование для отладки
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"Task created: id={task.id}, child_id={child_id}, task_type_id={task_type_id}, "
+            f"scheduled_date={task.scheduled_date}, status={task.status}, reward_amount={task.reward_amount}"
+        )
 
         # Формируем сообщение для администратора
         success_message = f"Для ребенка \"{child.display_name}\" назначено задание \"{task_type.name}\""

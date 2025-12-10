@@ -78,6 +78,7 @@ def get_admin_check_tasks_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
@@ -111,6 +112,7 @@ def get_admin_children_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
@@ -140,6 +142,7 @@ def get_admin_rewards_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
@@ -148,31 +151,59 @@ def get_admin_rewards_menu() -> InlineKeyboardMarkup:
 
 def get_admin_reports_menu() -> InlineKeyboardMarkup:
     """
-    Меню отчётов.
-    См. SPEC.md раздел 7.7
+    Меню отчётов - выбор периода.
     """
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📅 Отчёт за сегодня",
-                    callback_data="ADMIN_REPORT_TODAY",
+                    text="📅 Вчера",
+                    callback_data="ADMIN_REPORT_PERIOD_YESTERDAY",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="📅 Отчёт за вчера",
-                    callback_data="ADMIN_REPORT_YESTERDAY",
+                    text="📅 Сегодня",
+                    callback_data="ADMIN_REPORT_PERIOD_TODAY",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="📊 Еженедельный отчёт",
-                    callback_data="ADMIN_REPORT_WEEK",
+                    text="📊 За неделю",
+                    callback_data="ADMIN_REPORT_PERIOD_WEEK",
                 ),
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
+            ],
+        ]
+    )
+    return keyboard
+
+
+def get_admin_report_type_menu(period: str) -> InlineKeyboardMarkup:
+    """
+    Меню выбора типа отчета после выбора периода.
+    period: "yesterday", "today", "week"
+    """
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📊 Итого",
+                    callback_data=f"ADMIN_REPORT_TOTAL:{period}",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="👦 По детям",
+                    callback_data=f"ADMIN_REPORT_BY_CHILD:{period}",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REPORTS"),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
@@ -200,18 +231,26 @@ def get_admin_leaders_menu() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
     return keyboard
 
 
-def get_back_button_menu() -> InlineKeyboardMarkup:
-    """Простая кнопка "Назад" в главное меню"""
+def get_back_button_menu(back_callback: str = None) -> InlineKeyboardMarkup:
+    """
+    Кнопки "Назад" и "Главное меню".
+    Если back_callback не указан, "Назад" ведет в главное меню.
+    """
+    if back_callback is None:
+        back_callback = ADMIN_BACK_MAIN
+    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
             ],
         ]
     )
