@@ -13,6 +13,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import ADMIN_TELEGRAM_ID
+
+# Названия дней недели на русском
+WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+
+def get_week_days_string(week_start: date, week_end: date) -> str:
+    """Получить строку с днями недели для периода"""
+    days = []
+    current = week_start
+    while current <= week_end:
+        weekday_name = WEEKDAYS_RU[current.weekday()]
+        days.append(weekday_name)
+        current += timedelta(days=1)
+    return ", ".join(days)
 from bot.keyboards.admin import (
     get_admin_children_menu,
     get_admin_check_tasks_menu,
@@ -245,7 +259,7 @@ async def handle_report_total(callback: CallbackQuery):
             # Проверка на пустой отчет
             if not report:
                 await callback.message.answer(
-                    f"📊 **Отчет за сегодня**\n\n"
+                    f"📊 Отчет за сегодня\n\n"
                     f"Нет данных за выбранный период."
                 )
                 await callback.answer("Отчёт пуст")
@@ -254,8 +268,9 @@ async def handle_report_total(callback: CallbackQuery):
             # Отправляем отчет по каждому ребенку отдельным сообщением
             for child_id, child_data in report.items():
                 child_report_text = (
-                    f"📊 **Отчет за сегодня**\n\n"
-                    f"👦 **{child_data['child_name']}**\n\n"
+                    f"📊 Отчет за сегодня\n\n"
+                    f"👦 {child_data['child_name']}\n"
+                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
                 )
                 
                 for task_info in child_data["tasks"]:
@@ -269,8 +284,8 @@ async def handle_report_total(callback: CallbackQuery):
                 
                 total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
                 child_report_text += (
-                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
-                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
+                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
                 await callback.message.answer(child_report_text)
             
@@ -283,7 +298,7 @@ async def handle_report_total(callback: CallbackQuery):
             # Проверка на пустой отчет
             if not report:
                 await callback.message.answer(
-                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
+                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
                     f"Нет данных за выбранный период."
                 )
                 await callback.answer("Отчёт пуст")
@@ -292,8 +307,9 @@ async def handle_report_total(callback: CallbackQuery):
             # Отправляем отчет по каждому ребенку отдельным сообщением
             for child_id, child_data in report.items():
                 child_report_text = (
-                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
-                    f"👦 **{child_data['child_name']}**\n\n"
+                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
+                    f"👦 {child_data['child_name']}\n"
+                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
                 )
                 
                 for task_info in child_data["tasks"]:
@@ -307,8 +323,8 @@ async def handle_report_total(callback: CallbackQuery):
                 
                 total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
                 child_report_text += (
-                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
-                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
+                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
                 await callback.message.answer(child_report_text)
             
@@ -330,8 +346,9 @@ async def handle_report_total(callback: CallbackQuery):
                     has_any_data = True
                     for child_id, child_data in report.items():
                         child_report_text = (
-                            f"📊 **Отчет за {current_date.strftime('%d.%m.%Y')}**\n\n"
-                            f"👦 **{child_data['child_name']}**\n\n"
+                            f"📊 Отчет за {current_date.strftime('%d.%m.%Y')}\n\n"
+                            f"👦 {child_data['child_name']}\n"
+                            f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
                         )
                         
                         for task_info in child_data["tasks"]:
@@ -345,15 +362,15 @@ async def handle_report_total(callback: CallbackQuery):
                         
                         total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
                         child_report_text += (
-                            f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
-                            f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                            f"\n⏱ Общее время выполнения: {total_time_text}\n"
+                            f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                         )
                         await callback.message.answer(child_report_text)
             
             # Проверка на пустой отчет за всю неделю
             if not has_any_data:
                 await callback.message.answer(
-                    f"📊 **Отчет за неделю**\n"
+                    f"📊 Отчет за неделю\n"
                     f"({week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')})\n\n"
                     f"Нет данных за выбранный период."
                 )
@@ -444,14 +461,15 @@ async def handle_report_child_selected(callback: CallbackQuery):
             
             if not child_data:
                 await callback.message.answer(
-                    f"📊 **Отчет за сегодня**\n\n"
-                    f"👦 **{child.display_name}**\n\n"
+                    f"📊 Отчет за сегодня\n\n"
+                    f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот день."
                 )
             else:
                 report_text = (
-                    f"📊 **Отчет за сегодня**\n\n"
-                    f"👦 **{child_data['child_name']}**\n\n"
+                    f"📊 Отчет за сегодня\n\n"
+                    f"👦 {child_data['child_name']}\n"
+                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
                 )
                 
                 for task_info in child_data["tasks"]:
@@ -465,8 +483,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 
                 total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
                 report_text += (
-                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
-                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
+                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
                 await callback.message.answer(report_text)
             
@@ -479,14 +497,15 @@ async def handle_report_child_selected(callback: CallbackQuery):
             
             if not child_data:
                 await callback.message.answer(
-                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
-                    f"👦 **{child.display_name}**\n\n"
+                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
+                    f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот день."
                 )
             else:
                 report_text = (
-                    f"📊 **Отчет за вчера ({report_date.strftime('%d.%m.%Y')})**\n\n"
-                    f"👦 **{child_data['child_name']}**\n\n"
+                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
+                    f"👦 {child_data['child_name']}\n"
+                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
                 )
                 
                 for task_info in child_data["tasks"]:
@@ -500,8 +519,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 
                 total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
                 report_text += (
-                    f"\n⏱ **Общее время выполнения: {total_time_text}**\n"
-                    f"💰 **Сумма за выполненные задания: {child_data['total']} ARS**"
+                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
+                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
                 await callback.message.answer(report_text)
             
@@ -526,8 +545,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
             
             if not tasks:
                 await callback.message.answer(
-                    f"📊 **Отчет за неделю**\n\n"
-                    f"👦 **{child.display_name}**\n\n"
+                    f"📊 Отчет за неделю\n\n"
+                    f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот период."
                 )
             else:
@@ -548,10 +567,15 @@ async def handle_report_child_selected(callback: CallbackQuery):
                         total_time_week += task.task_type.execution_time or 0
                 
                 # Формируем отчет по дням
+                # Первая строка - дата с которой по которую отчет
+                # Вторая строка - дни недели
+                # Третья строка - сумма выплаты за неделю
+                week_days = get_week_days_string(week_start, week_end)
                 report_text = (
-                    f"📊 **Отчет за неделю**\n"
-                    f"({week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')})\n\n"
-                    f"👦 **{child.display_name}**\n\n"
+                    f"📅 {week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')}\n"
+                    f"{week_days}\n"
+                    f"💰 Сумма выплаты за неделю: {total_week} ARS\n\n"
+                    f"👦 {child.display_name}\n\n"
                 )
                 
                 from db.models import TaskMedia
@@ -561,7 +585,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                     day_total = sum(t.reward_amount for t in day_tasks if t.status == TaskStatus.DONE)
                     day_total_time = sum(t.task_type.execution_time or 0 for t in day_tasks if t.status == TaskStatus.DONE)
                     
-                    report_text += f"📅 **{task_date.strftime('%d.%m.%Y')}**\n"
+                    report_text += f"📅 {task_date.strftime('%d.%m.%Y')}\n"
+                    report_text += f"💰 Сумма выплаты: {day_total} ARS\n\n"
                     for task in day_tasks:
                         status_emoji = "✅" if task.status == TaskStatus.DONE else "❌"
                         reward = task.reward_amount if task.status == TaskStatus.DONE else Decimal("0.00")
@@ -588,8 +613,7 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 
                 total_time_text = f"{total_time_week} минут" if total_time_week > 0 else "0 минут"
                 report_text += (
-                    f"⏱ **Общее время выполнения за неделю: {total_time_text}**\n"
-                    f"💰 **Сумма за выполненные задания за неделю: {total_week} ARS**"
+                    f"⏱ Общее время выполнения за неделю: {total_time_text}\n"
                 )
                 await callback.message.answer(report_text)
             
