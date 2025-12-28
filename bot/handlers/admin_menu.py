@@ -52,27 +52,27 @@ def format_admin_guide() -> str:
     См. SPEC.md раздел 7.9
     """
     return (
-        "📖 **Гайд по работе с ботом**\n\n"
-        "**1. Добавление бота в чат**\n\n"
+        "📖 Гайд по работе с ботом\n\n"
+        "1. Добавление бота в чат\n\n"
         "Для того, чтобы бот мог выдавать задания детям:\n"
         "1. Добавьте бота в групповой чат (или семейный чат)\n"
         "2. Сделайте бота администратором чата\n"
         "3. Детям нужно будет начать диалог с ботом (отправить /start) для регистрации\n\n"
-        "**2. Как выдаются задания**\n\n"
+        "2. Как выдаются задания\n\n"
         "Задания могут выдаваться двумя способами:\n\n"
-        "**А) Автоматически по расписанию:**\n"
+        "А) Автоматически по расписанию:\n"
         "– Зайдите в меню 🗓 Расписания → ➕ Новое расписание\n"
         "– Выберите тип задания, время, дни недели и детей\n"
         "– Бот будет автоматически создавать задания и отправлять их в чат\n\n"
-        "**Б) Вручную через админ-меню:**\n"
+        "Б) Вручную через админ-меню:\n"
         "– Зайдите в ➕ Назначить задание\n"
         "– Выберите ребёнка, тип задания и дату\n"
         "– Задание будет создано и отправлено немедленно\n\n"
-        "**3. Где видны задания**\n\n"
+        "3. Где видны задания\n\n"
         "– Если настроен семейный чат (`FAMILY_CHAT_ID` в .env), задания отправляются туда\n"
         "– Если не настроен, задания отправляются детям в личные сообщения\n"
         "– Вы можете проверить статус всех заданий через 📋 Проверка заданий\n\n"
-        "**4. Проверка выполненных заданий**\n\n"
+        "4. Проверка выполненных заданий\n\n"
         "– Дети нажимают кнопку \"✅ Выполнил\" на задании\n"
         "– Если требуется медиа, дети отправляют фото/видео ответом на сообщение с заданием\n"
         "– Вы можете вручную проверить и принять/отклонить задания через 📋 Проверка заданий"
@@ -86,7 +86,7 @@ async def cmd_admin(message: Message):
     См. SPEC.md раздел 7.1
     """
     await message.answer(
-        "🔧 **Админ-панель**\n\n"
+        "🔧 Админ-панель\n\n"
         "Выберите действие:",
         reply_markup=get_admin_main_menu(),
     )
@@ -97,7 +97,7 @@ async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
     """Возврат в главное меню"""
     await state.clear()
     await callback.message.edit_text(
-        "🔧 **Админ-панель**\n\n" "Выберите действие:",
+        "🔧 Админ-панель\n\n" "Выберите действие:",
         reply_markup=get_admin_main_menu(),
     )
     await callback.answer()
@@ -110,7 +110,7 @@ async def handle_check_tasks(callback: CallbackQuery):
     См. SPEC.md раздел 7.2
     """
     await callback.message.edit_text(
-        "📋 **Проверка заданий**\n\n" "Выберите действие:",
+        "📋 Проверка заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_check_tasks_menu(),
     )
     await callback.answer()
@@ -137,7 +137,7 @@ async def handle_check_today_by_child(callback: CallbackQuery):
         tasks = result.scalars().all()
 
         if not tasks:
-            text = f"📅 **Задания на сегодня ({today})**\n\n" "Нет заданий на сегодня."
+            text = f"📅 Задания на сегодня ({today})\n\n" "Нет заданий на сегодня."
         else:
             # Группировка по детям
             tasks_by_child = {}
@@ -147,9 +147,9 @@ async def handle_check_today_by_child(callback: CallbackQuery):
                     tasks_by_child[child_name] = []
                 tasks_by_child[child_name].append(task)
 
-            lines = [f"📅 **Задания на сегодня ({today})**\n"]
+            lines = [f"📅 Задания на сегодня ({today})\n"]
             for child_name, child_tasks in tasks_by_child.items():
-                lines.append(f"👦 **{child_name}**")
+                lines.append(f"👦 {child_name}")
                 for task in child_tasks:
                     status_emoji = {
                         TaskStatus.DONE: "✅",
@@ -174,7 +174,10 @@ async def handle_children(callback: CallbackQuery):
     """
     from bot.keyboards.admin import get_admin_children_menu
     await callback.message.edit_text(
-        "👦 **Дети**\n\n" "Выберите действие:",
+        "👦 Дети\n\n"
+        "Просмотр списка детей.\n\n"
+        "💡 Для добавления детей используйте раздел:\n"
+        "🔐 Доступы → ➕ Добавить пользователя → выберите роль 'Пользователь'",
         reply_markup=get_admin_children_menu(),
     )
     await callback.answer()
@@ -190,10 +193,22 @@ async def handle_rewards_menu(callback: CallbackQuery):
     from bot.keyboards.admin import get_admin_rewards_menu
 
     await callback.message.edit_text(
-        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
+        "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_ACCESS")
+async def handle_access(callback: CallbackQuery):
+    """
+    Обработка "🔐 Доступы".
+    Перенаправление в раздел управления доступами.
+    """
+    # Обработчик уже реализован в admin_access.py
+    # Этот обработчик нужен для совместимости, но фактически обработка происходит в admin_access.router
+    from bot.handlers.admin_access import handle_access_menu
+    await handle_access_menu(callback)
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REPORTS")
@@ -203,7 +218,7 @@ async def handle_reports(callback: CallbackQuery):
     См. SPEC.md раздел 7.7
     """
     await callback.message.edit_text(
-        "📊 **Отчёты**\n\n" "Выберите период:",
+        "📊 Отчёты\n\n" "Выберите период:",
         reply_markup=get_admin_reports_menu(),
     )
     await callback.answer()
@@ -214,7 +229,7 @@ async def handle_report_period_today(callback: CallbackQuery):
     """Выбран период 'сегодня' - показываем меню типа отчета"""
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
-        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("today"),
     )
     await callback.answer()
@@ -225,7 +240,7 @@ async def handle_report_period_yesterday(callback: CallbackQuery):
     """Выбран период 'вчера' - показываем меню типа отчета"""
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
-        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("yesterday"),
     )
     await callback.answer()
@@ -236,7 +251,7 @@ async def handle_report_period_week(callback: CallbackQuery):
     """Выбран период 'за неделю' - показываем меню типа отчета"""
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
-        "📊 **Отчёты**\n\n" "Выберите тип отчета:",
+        "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("week"),
     )
     await callback.answer()
@@ -427,7 +442,7 @@ async def handle_report_by_child(callback: CallbackQuery):
         period_text = {"today": "сегодня", "yesterday": "вчера", "week": "за неделю"}.get(period, period)
         
         await callback.message.edit_text(
-            f"📊 **Отчёты**\n\n"
+            f"📊 Отчёты\n\n"
             f"Период: {period_text}\n\n"
             f"Выберите ребёнка:",
             reply_markup=keyboard,
@@ -627,7 +642,7 @@ async def handle_leaders(callback: CallbackQuery):
     См. SPEC.md раздел 7.8
     """
     await callback.message.edit_text(
-        "🏆 **Лидеры**\n\n" "Выберите период:",
+        "🏆 Лидеры\n\n" "Выберите период:",
         reply_markup=get_admin_leaders_menu(),
     )
     await callback.answer()
@@ -652,13 +667,6 @@ async def handle_assign_task(callback: CallbackQuery):
     await handle_assign_task_list(callback)
 
 
-# Обработчик для добавления ребёнка (перенаправление)
-@router.callback_query(lambda c: c.data == "ADMIN_CHILD_ADD")
-async def handle_child_add_redirect(callback: CallbackQuery, state: FSMContext):
-    """Перенаправление на обработчик добавления ребёнка"""
-    from bot.handlers.admin_children import handle_child_add_start
-    await handle_child_add_start(callback, state)
-    await callback.answer()
 
 @router.callback_query(lambda c: c.data == "ADMIN_ADD_TASK_TYPE")
 async def handle_add_task_type_redirect(callback: CallbackQuery, state: FSMContext):
