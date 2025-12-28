@@ -15,6 +15,20 @@ from db.models import Task, TaskMedia, TaskStatus, User, UserRole
 
 logger = logging.getLogger(__name__)
 
+# Названия дней недели на русском
+WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+
+def get_week_days_string(week_start: date, week_end: date) -> str:
+    """Получить строку с днями недели для периода"""
+    days = []
+    current = week_start
+    while current <= week_end:
+        weekday_name = WEEKDAYS_RU[current.weekday()]
+        days.append(weekday_name)
+        current += timedelta(days=1)
+    return ", ".join(days)
+
 
 class ReportService:
     """Сервис для формирования отчётов"""
@@ -90,6 +104,8 @@ class ReportService:
 
         for child_id, child_data in report.items():
             lines.append(f"👦 {child_data['child_name']}")
+            lines.append(f"💰 Сумма выплаты: {child_data['total']} ARS")
+            lines.append("")
             for task_info in child_data["tasks"]:
                 status_emoji = "✅" if task_info["status"] == "done" else "❌"
                 media_icon = "📸" if task_info["has_media"] else ""
@@ -173,19 +189,34 @@ class ReportService:
         """
         report = await ReportService.generate_weekly_report(session, week_start, week_end)
 
-        lines = [
-            f"Еженедельный отчёт ({week_start.strftime('%Y-%m-%d')} — {week_end.strftime('%Y-%m-%d')})",
-            "",
-        ]
+        lines = []
 
         for child_id, child_data in report.items():
+            # Первая строка - дата с которой по которую отчет
+            lines.append(f"📅 {week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')}")
+            # Вторая строка - дни недели
+            week_days = get_week_days_string(week_start, week_end)
+            lines.append(week_days)
+            # Третья строка - сумма выплаты за неделю
+            lines.append(f"💰 Сумма выплаты за неделю: {child_data['grand_total']} ARS")
+            lines.append("")
+            
             lines.append(f"👦 {child_data['child_name']}")
+            lines.append("")
             
             # Группируем по датам
             for task_date in sorted(child_data["tasks_by_date"].keys()):
                 lines.append(f"📅 {task_date.strftime('%d.%m.%Y')}")
                 day_total = Decimal("0.00")
                 day_total_time = 0
+                
+                # Считаем сумму выплаты за день (только выполненные задания)
+                for task_info in child_data["tasks_by_date"][task_date]:
+                    day_total += task_info["reward_amount"]
+                    day_total_time += task_info["execution_time"]
+                
+                lines.append(f"💰 Сумма выплаты: {day_total} ARS")
+                lines.append("")
                 
                 for task_info in child_data["tasks_by_date"][task_date]:
                     media_icon = "📸" if task_info["has_media"] else ""
@@ -194,8 +225,6 @@ class ReportService:
                         f"– {task_info['task_type_name']}: "
                         f"{task_info['reward_amount']} ARS{time_text} {media_icon}"
                     )
-                    day_total += task_info["reward_amount"]
-                    day_total_time += task_info["execution_time"]
                 
                 day_time_text = f"{day_total_time} минут" if day_total_time > 0 else "0 минут"
                 lines.append(f"⏱ Общее время за день: {day_time_text}")
@@ -204,7 +233,6 @@ class ReportService:
             
             total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
             lines.append(f"⏱ Общее время выполнения за неделю: {total_time_text}")
-            lines.append(f"💰 Итого: {child_data['grand_total']} ARS")
             lines.append("")
 
         return "\n".join(lines)

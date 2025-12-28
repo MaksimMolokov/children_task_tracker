@@ -41,3 +41,11 @@ class AddScheduleStates(StatesGroup):
     waiting_for_time = State()
 
 
+class AddUserStates(StatesGroup):
+    """Состояния для добавления пользователя (админа или ребенка)"""
+    waiting_for_name = State()
+    waiting_for_telegram_id = State()
+    waiting_for_role = State()
+    waiting_for_age = State()  # Опционально, только для роли CHILD
+
+

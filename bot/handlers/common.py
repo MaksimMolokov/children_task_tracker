@@ -7,70 +7,69 @@ import logging
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from sqlalchemy import select
 
-from bot.config import ADMIN_TELEGRAM_ID
 from db.database import AsyncSessionLocal
 from db.models import User, UserRole
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """
     Команда /start
-    См. SPEC.md раздел 4.1:
-    - При /start от админа (по ADMIN_TELEGRAM_ID) помечает его как admin
-    - Для остальных пользователей - обычное приветствие
+    Проверяет роль пользователя в базе данных и показывает соответствующее меню:
+    - ADMIN: админ-меню
+    - CHILD: приветствие для ребенка
+    - Не зарегистрирован: сообщение о регистрации
     """
-    from db.database import AsyncSessionLocal
-    
     async with AsyncSessionLocal() as session:
-        # Проверка, является ли пользователь админом
-        # Отладочная информация (можно удалить позже)
-        logger = logging.getLogger(__name__)
-        logger.info(f"Получен /start от пользователя ID: {message.from_user.id}, ожидаемый ADMIN_ID: {ADMIN_TELEGRAM_ID}")
+        user_id = message.from_user.id
+        logger.info(f"Получен /start от пользователя ID: {user_id}")
         
-        if message.from_user.id == ADMIN_TELEGRAM_ID:
-            # Проверка/создание записи админа в БД
-            from sqlalchemy import select
-
-            result = await session.execute(
-                select(User).where(User.telegram_user_id == message.from_user.id)
+        # Проверяем, есть ли пользователь в базе данных
+        result = await session.execute(
+            select(User).where(
+                User.telegram_user_id == user_id,
+                User.is_active == True
             )
-            user = result.scalar_one_or_none()
+        )
+        user = result.scalar_one_or_none()
 
-            if not user:
-                user = User(
-                    telegram_user_id=message.from_user.id,
-                    role=UserRole.ADMIN,
-                    display_name="Админ",
-                )
-                session.add(user)
-                await session.commit()
+        if user:
+            # Пользователь найден в БД
+            if user.role == UserRole.ADMIN:
+                # Администратор
                 from bot.keyboards.admin import get_admin_main_menu
                 from bot.handlers.admin_menu import format_admin_guide
 
                 await message.answer(
                     "Добро пожаловать, администратор!\n\n"
-                    "⚠️ **Важно:** для работы бота его нужно добавить в чат, где будут происходить выдача заданий, "
+                    "⚠️ Важно: для работы бота его нужно добавить в чат, где будут происходить выдача заданий, "
                     "и сделать администратором этого чата.\n\n"
                     "Используйте /admin для входа в админ-панель.",
                     reply_markup=get_admin_main_menu(),
                 )
                 guide_text = format_admin_guide()
                 await message.answer(guide_text)
-            else:
-                from bot.keyboards.admin import get_admin_main_menu
-                from bot.handlers.admin_menu import format_admin_guide
-
+            elif user.role == UserRole.CHILD:
+                # Ребенок
                 await message.answer(
-                    "Вы уже зарегистрированы как администратор.\n\n"
-                    "⚠️ Не забудьте: бота нужно добавить в чат для выдачи заданий и сделать администратором.\n\n"
-                    "Используйте /admin для входа в админ-панель.",
-                    reply_markup=get_admin_main_menu(),
+                    f"Привет, {user.display_name}!\n\n"
+                    "Я бот для контроля выполнения заданий.\n"
+                    "Твои задания будут приходить сюда. "
+                    "Выполняй их и получай награды!"
+                )
+            else:
+                # Неизвестная роль
+                await message.answer(
+                    "Привет! Я бот для контроля выполнения заданий. "
+                    "Обратитесь к администратору для регистрации."
                 )
         else:
+            # Пользователь не найден в БД
             await message.answer(
                 "Привет! Я бот для контроля выполнения заданий. "
                 "Обратитесь к администратору для регистрации."

@@ -59,7 +59,7 @@ async def main():
 
     # Регистрация роутеров (handlers)
     # См. SPEC.md раздел 4 "Логика и поведение" и раздел 7 "Админ-меню"
-    from bot.handlers import admin_children, admin_rewards, admin_schedules, admin_task_types, admin_testing
+    from bot.handlers import admin_children, admin_rewards, admin_schedules, admin_task_types, admin_testing, admin_access
 
     # Важно: FSM обработчики должны быть зарегистрированы первыми для правильной работы
     # Роутер children должен быть зарегистрирован раньше admin_menu, чтобы обработчик task_complete не перехватывался
@@ -69,6 +69,7 @@ async def main():
     dp.include_router(admin_schedules.router)  # Обработчики для расписаний (включая FSM)
     dp.include_router(admin_task_types.router)  # Обработчики для списка карточек заданий
     dp.include_router(admin_testing.router)  # Обработчики для тестирования
+    dp.include_router(admin_access.router)  # Обработчики для управления доступами
     dp.include_router(common.router)
     dp.include_router(admin.router)
     dp.include_router(admin_menu.router)  # Админ-меню

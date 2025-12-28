@@ -30,7 +30,7 @@ async def notify_admin_about_completion(bot: Bot, task: Task, child_name: str, h
         media_text = " (с отчетом)" if has_media else ""
         await bot.send_message(
             chat_id=ADMIN_TELEGRAM_ID,
-            text=f"✅ **Задание выполнено!**\n\n"
+            text=f"✅ Задание выполнено!\n\n"
                  f"👦 Ребенок: {child_name}\n"
                  f"📋 Задание: {task.task_type.name}\n"
                  f"💰 Награда: {task.reward_amount} ARS{media_text}"

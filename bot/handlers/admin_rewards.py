@@ -49,7 +49,7 @@ router.message.middleware(AutoDeleteMiddleware())
 async def handle_task_type_add_start(callback: CallbackQuery, state: FSMContext):
     """Начало диалога добавления типа задания"""
     await callback.message.edit_text(
-        "➕ **Создать новую карточку задания**\n\n" "Введите название задания:",
+        "➕ Создать новую карточку задания\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
@@ -62,7 +62,7 @@ async def handle_task_type_add_cancel(callback: CallbackQuery, state: FSMContext
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
-        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
+        "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
     await callback.answer("Добавление отменено")
@@ -73,7 +73,7 @@ async def handle_reward_set_cancel(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
-        "🗂 **Карточки заданий**\n\n" "Выберите действие:",
+        "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
     await callback.answer("Установка ставки отменена")
@@ -258,7 +258,7 @@ async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Создание расписания для карточки**\n\n"
+        "🗓 Создание расписания для карточки\n\n"
         "Выберите периодичность (когда бот будет напоминать о задании):",
         reply_markup=keyboard
     )
@@ -321,7 +321,7 @@ async def handle_task_schedule_period_weekly(callback: CallbackQuery, state: FSM
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Создание расписания**\n\n" "Выберите день недели:",
+        "🗓 Создание расписания\n\n" "Выберите день недели:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -375,7 +375,7 @@ async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSM
     selected_text = f"Выбрано: {len(selected_days)}" if selected_days else "Выберите дни:"
 
     await callback.message.edit_text(
-        f"🗓 **Создание расписания**\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
+        f"🗓 Создание расписания\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -451,7 +451,7 @@ async def handle_task_schedule_period_back(callback: CallbackQuery, state: FSMCo
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Создание расписания для карточки**\n\n"
+        "🗓 Создание расписания для карточки\n\n"
         "Выберите периодичность (когда бот будет напоминать о задании):",
         reply_markup=keyboard
     )
@@ -493,7 +493,7 @@ async def _show_task_schedule_time_selection(callback: CallbackQuery, state: FSM
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Создание расписания**\n\n" "Выберите время отправки:",
+        "🗓 Создание расписания\n\n" "Выберите время отправки:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -515,7 +515,7 @@ async def handle_task_schedule_time_selected(callback: CallbackQuery, state: FSM
 async def handle_task_schedule_time_custom(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени"""
     await callback.message.edit_text(
-        "🗓 **Создание расписания**\n\n"
+        "🗓 Создание расписания\n\n"
         "Введите время в формате HH:MM (например, 09:30):",
         reply_markup=get_back_button_menu(),
     )
@@ -589,14 +589,14 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
     time_str = schedule_time.strftime("%H:%M") if schedule_time else "не указано"
     
     summary_text = (
-        f"📝 **Проверка данных карточки задания**\n\n"
-        f"📋 **Название:** {data['task_type_name']}\n"
-        f"📝 **Описание:** {data.get('task_type_description') or 'не указано'}\n"
-        f"⏱ **Время выполнения:** {data.get('task_type_execution_time')} минут\n"
-        f"💰 **Стоимость:** {data.get('task_type_reward_amount')} ARS\n"
-        f"📸 **Отчёт:** {'требуется' if requires_media else 'не требуется'}\n"
-        f"🗓 **Расписание:** {schedule_text}\n"
-        f"🕐 **Время отправки:** {time_str}\n\n"
+        f"📝 Проверка данных карточки задания\n\n"
+        f"📋 Название: {data['task_type_name']}\n"
+        f"📝 Описание: {data.get('task_type_description') or 'не указано'}\n"
+        f"⏱ Время выполнения: {data.get('task_type_execution_time')} минут\n"
+        f"💰 Стоимость: {data.get('task_type_reward_amount')} ARS\n"
+        f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
+        f"🗓 Расписание: {schedule_text}\n"
+        f"🕐 Время отправки: {time_str}\n\n"
         f"Подтверждаете создание карточки?"
     )
 
@@ -678,8 +678,8 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     result_text = (
-        f"✅ **Карточка задания успешно создана!**\n\n"
-        f"📋 **{task_type.name}**\n"
+        f"✅ Карточка задания успешно создана!\n\n"
+        f"📋 {task_type.name}\n"
         f"📝 {task_type.description}\n"
         f"⏱ {task_type.execution_time} минут\n"
         f"💰 Стоимость: {data['task_type_reward_amount']} ARS\n"
@@ -696,7 +696,7 @@ async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContex
     """Перезапуск создания карточки задания"""
     await state.clear()
     await callback.message.edit_text(
-        "➕ **Создать новую карточку задания**\n\n" "Введите название задания:",
+        "➕ Создать новую карточку задания\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
@@ -747,7 +747,7 @@ async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMCont
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-        "🗂 **Установка ставки по ребёнку**\n\n" "Выберите ребёнка:",
+        "🗂 Установка ставки по ребёнку\n\n" "Выберите ребёнка:",
         reply_markup=keyboard,
     )
         await callback.answer()
@@ -813,7 +813,7 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-        f"🗂 **Установка ставки для {child.display_name}**\n\n" "Выберите тип задания:",
+        f"🗂 Установка ставки для {child.display_name}\n\n" "Выберите тип задания:",
         reply_markup=keyboard,
     )
         await callback.answer()
@@ -858,7 +858,7 @@ async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSM
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-        "🗂 **Установка ставки по заданию**\n\n" "Выберите тип задания:",
+        "🗂 Установка ставки по заданию\n\n" "Выберите тип задания:",
         reply_markup=keyboard,
     )
         await callback.answer()
@@ -924,7 +924,7 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-        f"🗂 **Установка ставки для {task_type.name}**\n\n" "Выберите ребёнка:",
+        f"🗂 Установка ставки для {task_type.name}\n\n" "Выберите ребёнка:",
         reply_markup=keyboard,
     )
         await callback.answer()
@@ -946,7 +946,7 @@ async def handle_reward_child_second_selected(callback: CallbackQuery, state: FS
     await callback.answer(f"✅ Выбран ребёнок: {child.display_name}")
 
     await callback.message.edit_text(
-        "💰 **Установка ставки**\n\n"
+        "💰 Установка ставки\n\n"
         "Введите сумму вознаграждения (число, например: 1000):",
         reply_markup=get_back_button_menu(),
     )
@@ -970,7 +970,7 @@ async def handle_reward_task_type_selected(callback: CallbackQuery, state: FSMCo
     await callback.answer(f"✅ Выбрано задание: {task_type.name}")
 
     await callback.message.edit_text(
-        "💰 **Установка ставки**\n\n"
+        "💰 Установка ставки\n\n"
         "Введите сумму вознаграждения (число, например: 1000):",
         reply_markup=get_back_button_menu(),
     )
@@ -1057,7 +1057,7 @@ async def handle_reward_amount(message: Message, state: FSMContext):
             status_text = "установлена"
 
     await message.answer(
-        f"✅ **Ставка {status_text}!**\n\n"
+        f"✅ Ставка {status_text}!\n\n"
         f"👦 Ребёнок: {child.display_name}\n"
         f"📋 Задание: {task_type.name}\n"
         f"💰 Сумма: {amount} ARS",
