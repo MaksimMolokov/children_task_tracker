@@ -50,14 +50,32 @@ sudo usermod -aG docker $USER
 # Выйдите и зайдите заново для применения группы
 ```
 
-## Обновление бота
+## Обновление бота на сервере
+
+После `git push origin main` зайдите на сервер и выполните:
+
+```bash
+ssh root@200.234.239.58
+cd ~/children_task_tracker
+git pull origin main
+./server-update.sh
+```
+
+Скрипт `server-update.sh` (лежит в корне репозитория) сам:
+- подтягивает код (`git pull`),
+- пересобирает и перезапускает контейнеры (`docker-compose up -d --build`),
+- применяет миграции БД.
+
+Если скрипта ещё нет (старая копия репозитория), сначала обновите код и сделайте скрипт исполняемым:
 
 ```bash
 cd ~/children_task_tracker
 git pull origin main
-docker-compose up -d --build
-docker-compose exec bot python -m alembic upgrade head
+chmod +x server-update.sh
+./server-update.sh
 ```
+
+**Если удалили себя из админов:** в `.env` на сервере должен быть ваш Telegram ID: `ADMIN_TELEGRAM_ID=ваш_id`. После перезапуска бот вернёт этого пользователя в админы.
 
 ## Проверка работы
 
