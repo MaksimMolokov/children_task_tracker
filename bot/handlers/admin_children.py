@@ -28,6 +28,7 @@ router.message.middleware(AutoDeleteMiddleware())
 @router.callback_query(lambda c: c.data == "ADMIN_CHILD_LIST")
 async def handle_child_list(callback: CallbackQuery):
     """Список всех детей с кнопками удаления"""
+    await callback.answer()
     from sqlalchemy import select
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -87,7 +88,6 @@ async def handle_child_list(callback: CallbackQuery):
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_CHILD_DELETE:"))

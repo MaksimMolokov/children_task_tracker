@@ -56,35 +56,35 @@ router.message.middleware(AutoDeleteMiddleware())
 @router.callback_query(lambda c: c.data == "ADMIN_ADD_TASK_TYPE")
 async def handle_task_type_add_start(callback: CallbackQuery, state: FSMContext):
     """Начало диалога добавления типа задания"""
+    await callback.answer()
     await callback.message.edit_text(
         "➕ Создать новую карточку задания\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
-    await callback.answer()
 
 
 @router.callback_query(StateFilter(AddTaskTypeStates), lambda c: c.data == "ADMIN_BACK_MAIN")
 async def handle_task_type_add_cancel(callback: CallbackQuery, state: FSMContext):
     """Отмена добавления типа задания"""
+    await callback.answer("Добавление отменено")
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
         "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
-    await callback.answer("Добавление отменено")
 
 @router.callback_query(StateFilter(SetRewardStates), lambda c: c.data == "ADMIN_BACK_MAIN")
 async def handle_reward_set_cancel(callback: CallbackQuery, state: FSMContext):
     """Отмена установки ставки"""
+    await callback.answer("Установка ставки отменена")
     await state.clear()
     from bot.keyboards.admin import get_admin_rewards_menu
     await callback.message.edit_text(
         "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
-    await callback.answer("Установка ставки отменена")
 
 @router.message(AddTaskTypeStates.waiting_for_name)
 async def handle_task_type_name(message: Message, state: FSMContext):
@@ -226,6 +226,7 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
 @router.callback_query(lambda c: c.data in [REWARD_REPORT_YES, REWARD_REPORT_NO])
 async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора необходимости отчета"""
+    await callback.answer()
     requires_media = callback.data == REWARD_REPORT_YES
     await state.update_data(task_type_requires_media=requires_media)
 
@@ -247,12 +248,12 @@ async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
         reply_markup=keyboard
     )
     await state.set_state(AddTaskTypeStates.waiting_for_notify_choice)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data in [REWARD_NOTIFY_YES, REWARD_NOTIFY_NO])
 async def handle_notify_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора уведомления при выполнении"""
+    await callback.answer()
     notify_on_completion = callback.data == REWARD_NOTIFY_YES
     await state.update_data(task_type_notify_on_completion=notify_on_completion)
 
@@ -284,46 +285,46 @@ async def handle_notify_choice(callback: CallbackQuery, state: FSMContext):
         reply_markup=keyboard
     )
     await state.set_state(AddTaskTypeStates.waiting_for_schedule_periodicity)
-    await callback.answer()
 
 
 # Обработчики создания расписания для карточки
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_DAILY")
 async def handle_task_schedule_period_daily(callback: CallbackQuery, state: FSMContext):
     """Выбрано ежедневно"""
+    await callback.answer("✅ Периодичность: Каждый день")
     await state.update_data(
         schedule_days_of_week=ALL_DAYS,
         schedule_periodicity=SchedulePeriodicity.DAILY,
     )
-    await callback.answer("✅ Периодичность: Каждый день")
     await _show_task_schedule_time_selection(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKDAYS")
 async def handle_task_schedule_period_weekdays(callback: CallbackQuery, state: FSMContext):
     """Выбраны будни"""
+    await callback.answer("✅ Периодичность: Будни (Пн-Пт)")
     await state.update_data(
         schedule_days_of_week=WEEKDAYS,
         schedule_periodicity=SchedulePeriodicity.DAILY,
     )
-    await callback.answer("✅ Периодичность: Будни (Пн-Пт)")
     await _show_task_schedule_time_selection(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKENDS")
 async def handle_task_schedule_period_weekends(callback: CallbackQuery, state: FSMContext):
     """Выбраны выходные"""
+    await callback.answer("✅ Периодичность: Выходные (Сб-Вс)")
     await state.update_data(
         schedule_days_of_week=WEEKENDS,
         schedule_periodicity=SchedulePeriodicity.DAILY,
     )
-    await callback.answer("✅ Периодичность: Выходные (Сб-Вс)")
     await _show_task_schedule_time_selection(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_WEEKLY")
 async def handle_task_schedule_period_weekly(callback: CallbackQuery, state: FSMContext):
     """Выбрано раз в неделю - выбираем день"""
+    await callback.answer()
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     buttons = []
@@ -345,25 +346,25 @@ async def handle_task_schedule_period_weekly(callback: CallbackQuery, state: FSM
         "🗓 Создание расписания\n\n" "Выберите день недели:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_DAY:"))
 async def handle_task_schedule_day_selected(callback: CallbackQuery, state: FSMContext):
     """Выбран конкретный день недели"""
+    await callback.answer(f"✅ День выбран: {DAYS_OF_WEEK.get(callback.data.split(':')[1], callback.data.split(':')[1])}")
     day_code = callback.data.split(":")[1]
-    day_name = DAYS_OF_WEEK.get(day_code, day_code)
     await state.update_data(
         schedule_days_of_week=day_code,
         schedule_periodicity=SchedulePeriodicity.WEEKLY,
     )
-    await callback.answer(f"✅ День выбран: {day_name}")
     await _show_task_schedule_time_selection(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_CUSTOM")
-async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSMContext):
+async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSMContext, skip_answer: bool = False):
     """Выбор пользовательских дней"""
+    if not skip_answer:
+        await callback.answer()
     data = await state.get_data()
     selected_days = data.get("schedule_selected_days", [])
 
@@ -399,7 +400,6 @@ async def handle_task_schedule_period_custom(callback: CallbackQuery, state: FSM
         f"🗓 Создание расписания\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_TOGGLE_DAY:"))
@@ -420,8 +420,8 @@ async def handle_task_schedule_toggle_day(callback: CallbackQuery, state: FSMCon
     
     await state.update_data(schedule_selected_days=selected_days)
     
-    # Возвращаемся к выбору дней
-    await handle_task_schedule_period_custom(callback, state)
+    # Возвращаемся к выбору дней (уже ответили выше — не вызывать answer повторно)
+    await handle_task_schedule_period_custom(callback, state, skip_answer=True)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_DAYS_DONE")
@@ -435,18 +435,18 @@ async def handle_task_schedule_days_done(callback: CallbackQuery, state: FSMCont
         return
 
     days_names = ", ".join([DAYS_OF_WEEK.get(day, day) for day in selected_days])
+    await callback.answer(f"✅ Дни выбраны: {days_names}")
     await state.update_data(
         schedule_days_of_week=",".join(selected_days),
         schedule_periodicity=SchedulePeriodicity.DAILY,
     )
-    
-    await callback.answer(f"✅ Дни выбраны: {days_names}")
     await _show_task_schedule_time_selection(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_PERIOD_BACK")
 async def handle_task_schedule_period_back(callback: CallbackQuery, state: FSMContext):
     """Возврат к выбору периодичности"""
+    await callback.answer()
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     
     buttons = [
@@ -477,7 +477,6 @@ async def handle_task_schedule_period_back(callback: CallbackQuery, state: FSMCo
         reply_markup=keyboard
     )
     await state.set_state(AddTaskTypeStates.waiting_for_schedule_periodicity)
-    await callback.answer()
 
 
 async def _show_task_schedule_time_selection(callback: CallbackQuery, state: FSMContext):
@@ -513,35 +512,34 @@ async def _show_task_schedule_time_selection(callback: CallbackQuery, state: FSM
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
+    await callback.answer()
     await callback.message.edit_text(
         "🗓 Создание расписания\n\n" "Выберите время отправки:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("TASK_SCHEDULE_TIME:"))
 async def handle_task_schedule_time_selected(callback: CallbackQuery, state: FSMContext):
     """Время выбрано из предопределённых"""
+    await callback.answer(f"✅ Время выбрано: {callback.data.replace('TASK_SCHEDULE_TIME:', '')}")
     time_str = callback.data.replace("TASK_SCHEDULE_TIME:", "")
     hours, minutes = map(int, time_str.split(":"))
     schedule_time = time(hours, minutes)
-    
     await state.update_data(schedule_time=schedule_time)
-    await callback.answer(f"✅ Время выбрано: {time_str}")
     await _show_task_card_summary(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "TASK_SCHEDULE_TIME_CUSTOM")
 async def handle_task_schedule_time_custom(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени"""
+    await callback.answer()
     await callback.message.edit_text(
         "🗓 Создание расписания\n\n"
         "Введите время в формате HH:MM (например, 09:30):",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_schedule_time)
-    await callback.answer()
 
 
 @router.message(AddTaskTypeStates.waiting_for_schedule_time)
@@ -643,6 +641,7 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
 @router.callback_query(lambda c: c.data == REWARD_CONFIRM_CREATE)
 async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext):
     """Финальное создание карточки задания"""
+    await callback.answer()
     data = await state.get_data()
     requires_media = data.get("task_type_requires_media", False)
     notify_on_completion = data.get("task_type_notify_on_completion", False)
@@ -717,13 +716,13 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
 @router.callback_query(lambda c: c.data == REWARD_RESTART)
 async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContext):
     """Перезапуск создания карточки задания"""
+    await callback.answer("Создание карточки начато заново")
     await state.clear()
     await callback.message.edit_text(
         "➕ Создать новую карточку задания\n\n" "Введите название задания:",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddTaskTypeStates.waiting_for_name)
-    await callback.answer("Создание карточки начато заново")
 
 
 
@@ -735,6 +734,7 @@ async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContex
 @router.callback_query(lambda c: c.data == "ADMIN_REWARDS_BY_CHILD_SELECT")
 async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMContext):
     """Выбор ребёнка для установки ставки"""
+    await callback.answer()
     from sqlalchemy import select
 
     async with AsyncSessionLocal() as session:
@@ -748,7 +748,6 @@ async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMCont
                 "❌ Нет активных детей. Сначала добавьте ребёнка.",
                 reply_markup=get_admin_rewards_menu(),
             )
-            await callback.answer()
             return
 
         # Формируем список детей кнопками
@@ -770,10 +769,9 @@ async def handle_rewards_by_child_select(callback: CallbackQuery, state: FSMCont
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-        "🗂 Установка ставки по ребёнку\n\n" "Выберите ребёнка:",
-        reply_markup=keyboard,
-    )
-        await callback.answer()
+            "🗂 Установка ставки по ребёнку\n\n" "Выберите ребёнка:",
+            reply_markup=keyboard,
+        )
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_REWARD_CHILD:"))
@@ -781,20 +779,9 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
     """Ребёнок выбран, теперь выбираем тип задания"""
     child_id = int(callback.data.split(":")[1])
     await state.update_data(reward_child_id=child_id)
-    
-    # Показываем подтверждение выбора
-    from sqlalchemy import select
-    async with AsyncSessionLocal() as session:
-        child_result = await session.execute(
-            select(User).where(User.id == child_id)
-        )
-        child = child_result.scalar_one()
-    await callback.answer(f"✅ Выбран ребёнок: {child.display_name}")
 
     from sqlalchemy import select
-
     async with AsyncSessionLocal() as session:
-        # Получаем имя ребёнка
         child_result = await session.execute(
             select(User).where(User.id == child_id)
         )
@@ -802,8 +789,8 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
         if not child:
             await callback.answer("Ребёнок не найден", show_alert=True)
             return
+        await callback.answer(f"✅ Выбран ребёнок: {child.display_name}")
 
-        # Получаем типы заданий
         task_types_result = await session.execute(
             select(TaskType).where(TaskType.is_active == True)
         )
@@ -814,12 +801,9 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
                 "❌ Нет активных типов заданий. Сначала создайте тип задания.",
                 reply_markup=get_admin_rewards_menu(),
             )
-            await callback.answer()
             return
 
-        # Формируем список заданий кнопками
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
         buttons = []
         for task_type in task_types:
             buttons.append([
@@ -832,23 +816,20 @@ async def handle_reward_child_selected(callback: CallbackQuery, state: FSMContex
             InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
-        f"🗂 Установка ставки для {child.display_name}\n\n" "Выберите тип задания:",
-        reply_markup=keyboard,
-    )
-        await callback.answer()
+            f"🗂 Установка ставки для {child.display_name}\n\n" "Выберите тип задания:",
+            reply_markup=keyboard,
+        )
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REWARDS_BY_TASKTYPE_SELECT")
 async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSMContext):
     """Выбор типа задания для установки ставки"""
+    await callback.answer()
     from sqlalchemy import select
 
     async with AsyncSessionLocal() as session:
-        # Получаем типы заданий
         task_types_result = await session.execute(
             select(TaskType).where(TaskType.is_active == True)
         )
@@ -859,12 +840,9 @@ async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSM
                 "❌ Нет активных типов заданий. Сначала создайте тип задания.",
                 reply_markup=get_admin_rewards_menu(),
             )
-            await callback.answer()
             return
 
-        # Формируем список заданий кнопками
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
         buttons = []
         for task_type in task_types:
             buttons.append([
@@ -877,14 +855,11 @@ async def handle_rewards_by_task_type_select(callback: CallbackQuery, state: FSM
             InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_REWARDS"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
-        "🗂 Установка ставки по заданию\n\n" "Выберите тип задания:",
-        reply_markup=keyboard,
-    )
-        await callback.answer()
+            "🗂 Установка ставки по заданию\n\n" "Выберите тип задания:",
+            reply_markup=keyboard,
+        )
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_REWARD_TASK_TYPE_FIRST:"))
@@ -892,20 +867,9 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
     """Тип задания выбран первым, теперь выбираем ребёнка"""
     task_type_id = int(callback.data.split(":")[1])
     await state.update_data(reward_task_type_id=task_type_id)
-    
-    # Показываем подтверждение выбора
-    from sqlalchemy import select
-    async with AsyncSessionLocal() as session:
-        task_type_result = await session.execute(
-            select(TaskType).where(TaskType.id == task_type_id)
-        )
-        task_type = task_type_result.scalar_one()
-    await callback.answer(f"✅ Выбрано задание: {task_type.name}")
 
     from sqlalchemy import select
-
     async with AsyncSessionLocal() as session:
-        # Получаем имя задания
         task_type_result = await session.execute(
             select(TaskType).where(TaskType.id == task_type_id)
         )
@@ -913,8 +877,8 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
         if not task_type:
             await callback.answer("Тип задания не найден", show_alert=True)
             return
+        await callback.answer(f"✅ Выбрано задание: {task_type.name}")
 
-        # Получаем детей
         children_result = await session.execute(
             select(User).where(User.role == UserRole.CHILD, User.is_active == True)
         )
@@ -925,12 +889,9 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
                 "❌ Нет активных детей. Сначала добавьте ребёнка.",
                 reply_markup=get_admin_rewards_menu(),
             )
-            await callback.answer()
             return
 
-        # Формируем список детей кнопками
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
         buttons = []
         for child in children:
             buttons.append([
@@ -943,14 +904,11 @@ async def handle_reward_task_type_first_selected(callback: CallbackQuery, state:
             InlineKeyboardButton(text="⬅️ Назад в меню ставок", callback_data="ADMIN_REWARDS"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
-        f"🗂 Установка ставки для {task_type.name}\n\n" "Выберите ребёнка:",
-        reply_markup=keyboard,
-    )
-        await callback.answer()
+            f"🗂 Установка ставки для {task_type.name}\n\n" "Выберите ребёнка:",
+            reply_markup=keyboard,
+        )
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_REWARD_CHILD_SECOND:"))
@@ -958,8 +916,7 @@ async def handle_reward_child_second_selected(callback: CallbackQuery, state: FS
     """Ребёнок выбран вторым, запрашиваем сумму"""
     child_id = int(callback.data.split(":")[1])
     await state.update_data(reward_child_id=child_id)
-    
-    # Показываем подтверждение выбора
+
     from sqlalchemy import select
     async with AsyncSessionLocal() as session:
         child_result = await session.execute(
@@ -967,14 +924,12 @@ async def handle_reward_child_second_selected(callback: CallbackQuery, state: FS
         )
         child = child_result.scalar_one()
     await callback.answer(f"✅ Выбран ребёнок: {child.display_name}")
-
     await callback.message.edit_text(
         "💰 Установка ставки\n\n"
         "Введите сумму вознаграждения (число, например: 1000):",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(SetRewardStates.waiting_for_amount)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_REWARD_TASK_TYPE:"))
@@ -982,8 +937,7 @@ async def handle_reward_task_type_selected(callback: CallbackQuery, state: FSMCo
     """Тип задания выбран, запрашиваем сумму"""
     task_type_id = int(callback.data.split(":")[1])
     await state.update_data(reward_task_type_id=task_type_id)
-    
-    # Показываем подтверждение выбора
+
     from sqlalchemy import select
     async with AsyncSessionLocal() as session:
         task_type_result = await session.execute(
@@ -991,14 +945,12 @@ async def handle_reward_task_type_selected(callback: CallbackQuery, state: FSMCo
         )
         task_type = task_type_result.scalar_one()
     await callback.answer(f"✅ Выбрано задание: {task_type.name}")
-
     await callback.message.edit_text(
         "💰 Установка ставки\n\n"
         "Введите сумму вознаграждения (число, например: 1000):",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(SetRewardStates.waiting_for_amount)
-    await callback.answer()
 
 
 @router.message(SetRewardStates.waiting_for_amount)

@@ -1,7 +1,6 @@
 """
 Обработчики для управления расписаниями.
 """
-import asyncio
 import logging
 from datetime import time
 
@@ -13,6 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.handlers.fsm_states import AddScheduleStates
 from bot.keyboards.admin import get_back_button_menu
 from bot.middleware.auth import AdminMiddleware
+from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
 from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScope, TaskType, User, UserRole
 
@@ -43,11 +43,11 @@ ALL_DAYS = "MON,TUE,WED,THU,FRI,SAT,SUN"
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_ADD")
 async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
     """Начало диалога добавления расписания - сначала выбираем ребёнка"""
+    await callback.answer()
     from sqlalchemy import select
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     async with AsyncSessionLocal() as session:
-        # Получаем детей
         children_result = await session.execute(
             select(User).where(User.role == UserRole.CHILD, User.is_active == True)
         )
@@ -58,10 +58,8 @@ async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
                 "❌ Нет активных детей. Сначала добавьте ребёнка.",
                 reply_markup=get_back_button_menu(),
             )
-            await callback.answer()
             return
 
-        # Формируем список детей кнопками
         buttons = []
         for child in children:
             buttons.append([
@@ -74,24 +72,21 @@ async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULES"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
             "🗓 Новое расписание\n\n"
             "Выберите ребёнка, для которого создаётся расписание.\n"
             "Бот будет отправлять напоминания о заданиях в личные сообщения этому ребёнку:",
             reply_markup=keyboard,
         )
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_CHILD:"))
 async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMContext):
     """Ребёнок выбран, теперь выбираем задание"""
+    await callback.answer("✅ Ребёнок выбран")
     child_id = int(callback.data.split(":")[1])
     await state.update_data(schedule_child_id=child_id)
-    await callback.answer("✅ Ребёнок выбран")
 
     from sqlalchemy import select
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -114,10 +109,8 @@ async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMCont
                 "❌ Нет активных типов заданий. Сначала создайте тип задания в меню 'Ставки'.",
                 reply_markup=get_back_button_menu(),
             )
-            await callback.answer()
             return
 
-        # Формируем список заданий кнопками
         buttons = []
         for task_type in task_types:
             buttons.append([
@@ -130,16 +123,13 @@ async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMCont
             InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_ADD"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
             f"🗓 Новое расписание для {child.display_name}\n\n"
             "Выберите задание из перечня:\n"
             "(Бот будет напоминать об этом задании в указанное время)",
             reply_markup=keyboard,
         )
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_TASK_TYPE:"))
@@ -147,30 +137,20 @@ async def handle_schedule_task_type_selected(callback: CallbackQuery, state: FSM
     """Задание выбрано, переходим к выбору периодичности"""
     task_type_id = int(callback.data.split(":")[1])
     await state.update_data(schedule_task_type_id=task_type_id)
-    
-    # Получаем название задания для подтверждения
-    from sqlalchemy import select
-    async with AsyncSessionLocal() as session:
-        task_type_result = await session.execute(
-            select(TaskType).where(TaskType.id == task_type_id)
-        )
-        task_type = task_type_result.scalar_one()
-    await callback.answer(f"✅ Задание выбрано: {task_type.name}")
 
     from sqlalchemy import select
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     async with AsyncSessionLocal() as session:
-        # Получаем информацию для отображения
-        child_result = await session.execute(
-            select(User).where(User.id == (await state.get_data()).get("schedule_child_id"))
-        )
-        child = child_result.scalar_one()
-
         task_type_result = await session.execute(
             select(TaskType).where(TaskType.id == task_type_id)
         )
         task_type = task_type_result.scalar_one()
+        await callback.answer(f"✅ Задание выбрано: {task_type.name}")
+        child_result = await session.execute(
+            select(User).where(User.id == (await state.get_data()).get("schedule_child_id"))
+        )
+        child = child_result.scalar_one()
 
     buttons = [
         [
@@ -208,9 +188,7 @@ async def handle_schedule_task_type_selected(callback: CallbackQuery, state: FSM
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ],
     ]
-
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
     await callback.message.edit_text(
         f"🗓 Новое расписание\n\n"
         f"👦 Ребёнок: {child.display_name}\n"
@@ -218,7 +196,6 @@ async def handle_schedule_task_type_selected(callback: CallbackQuery, state: FSM
         f"Выберите периодичность (когда бот будет напоминать):",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 
@@ -260,6 +237,7 @@ async def handle_schedule_period_weekends(callback: CallbackQuery, state: FSMCon
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_PERIOD_WEEKLY")
 async def handle_schedule_period_weekly(callback: CallbackQuery, state: FSMContext):
     """Выбрано раз в неделю - выбираем день"""
+    await callback.answer()
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     buttons = []
@@ -274,14 +252,11 @@ async def handle_schedule_period_weekly(callback: CallbackQuery, state: FSMConte
         InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK"),
         InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
-
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
     await callback.message.edit_text(
         "🗓 Новое расписание\n\n" "Выберите день недели:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_DAY:"))
@@ -298,8 +273,10 @@ async def handle_schedule_day_selected(callback: CallbackQuery, state: FSMContex
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_PERIOD_CUSTOM")
-async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMContext):
+async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMContext, skip_answer: bool = False):
     """Выбор пользовательских дней"""
+    if not skip_answer:
+        await callback.answer()
     data = await state.get_data()
     selected_days = data.get("schedule_selected_days", [])
 
@@ -315,7 +292,6 @@ async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMConte
                 callback_data=f"ADMIN_SCHEDULE_TOGGLE_DAY:{day_code}",
             )
         ])
-
     buttons.append([
         InlineKeyboardButton(
             text="✅ Готово",
@@ -326,16 +302,12 @@ async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMConte
         InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_SCHEDULE_PERIOD_BACK"),
         InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
     ])
-
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
     selected_text = f"Выбрано: {len(selected_days)}" if selected_days else "Выберите дни:"
-
     await callback.message.edit_text(
         f"🗓 Новое расписание\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_TOGGLE_DAY:"))
@@ -355,9 +327,8 @@ async def handle_schedule_toggle_day(callback: CallbackQuery, state: FSMContext)
         await callback.answer(f"✅ {day_name} добавлен")
     
     await state.update_data(schedule_selected_days=selected_days)
-    
-    # Возвращаемся к выбору дней
-    await handle_schedule_period_custom(callback, state)
+    # Возвращаемся к выбору дней (уже ответили выше — не вызывать answer повторно)
+    await handle_schedule_period_custom(callback, state, skip_answer=True)
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_DAYS_DONE")
@@ -383,9 +354,9 @@ async def handle_schedule_days_done(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_PERIOD_BACK")
 async def handle_schedule_period_back(callback: CallbackQuery, state: FSMContext):
     """Возврат к выбору задания"""
+    await callback.answer()
     data = await state.get_data()
     task_type_id = data.get("schedule_task_type_id")
-    
     if task_type_id:
         # Возвращаемся к выбору задания
         from aiogram.types import CallbackQuery as FakeCallback
@@ -398,7 +369,6 @@ async def handle_schedule_period_back(callback: CallbackQuery, state: FSMContext
         await handle_schedule_task_type_selected(fake_cb, state)
     else:
         await handle_schedule_add_start(callback, state)
-    await callback.answer()
 
 
 async def _show_time_selection(callback: CallbackQuery, state: FSMContext):
@@ -433,37 +403,34 @@ async def _show_time_selection(callback: CallbackQuery, state: FSMContext):
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
+    await callback.answer()
     await callback.message.edit_text(
         "🗓 Новое расписание\n\n" "Выберите время отправки:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_TIME:"))
 async def handle_schedule_time_selected(callback: CallbackQuery, state: FSMContext):
     """Время выбрано из предопределённых"""
-    # Исправляем парсинг: удаляем префикс, чтобы получить "HH:MM"
     time_str = callback.data.replace("ADMIN_SCHEDULE_TIME:", "")
+    await callback.answer(f"✅ Время выбрано: {time_str}")
     hours, minutes = map(int, time_str.split(":"))
     schedule_time = time(hours, minutes)
-    
     await state.update_data(schedule_time=schedule_time)
-    await callback.answer(f"✅ Время выбрано: {time_str}")
     await _show_schedule_confirmation(callback, state)
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_TIME_CUSTOM")
 async def handle_schedule_time_custom(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени"""
+    await callback.answer()
     await callback.message.edit_text(
         "🗓 Новое расписание\n\n"
         "Введите время в формате HH:MM (например, 09:30):",
         reply_markup=get_back_button_menu(),
     )
     await state.set_state(AddScheduleStates.waiting_for_time)
-    await callback.answer()
 
 
 @router.message(AddScheduleStates.waiting_for_time)
@@ -486,11 +453,7 @@ async def handle_schedule_time_input(message: Message, state: FSMContext):
             "❌ Неверный формат времени. Используйте формат HH:MM (например, 09:30):",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
         return
 
     await state.update_data(schedule_time=schedule_time)
@@ -661,6 +624,7 @@ async def handle_schedule_confirm(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(lambda c: c.data == "ADMIN_SCHEDULE_LIST")
 async def handle_schedule_list(callback: CallbackQuery):
     """Список всех расписаний"""
+    await callback.answer()
     from sqlalchemy import select
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -735,7 +699,6 @@ async def handle_schedule_list(callback: CallbackQuery):
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_SCHEDULE_TOGGLE:"))
@@ -767,10 +730,10 @@ async def handle_schedule_toggle(callback: CallbackQuery):
 @router.callback_query(StateFilter(AddScheduleStates), lambda c: c.data == "ADMIN_BACK_MAIN")
 async def handle_schedule_add_cancel(callback: CallbackQuery, state: FSMContext):
     """Отмена добавления расписания"""
+    await callback.answer("Добавление отменено")
     await state.clear()
     await callback.message.edit_text(
         "🗓 Расписания\n\n" "Выберите действие:",
         reply_markup=get_back_button_menu(),
     )
-    await callback.answer("Добавление отменено")
 

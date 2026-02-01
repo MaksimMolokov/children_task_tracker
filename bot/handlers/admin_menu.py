@@ -107,12 +107,12 @@ async def cmd_admin(message: Message):
 @router.callback_query(lambda c: c.data == ADMIN_BACK_MAIN)
 async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
     """Возврат в главное меню"""
+    await callback.answer()
     await state.clear()
     await callback.message.edit_text(
         "🔧 Админ-панель\n\n" "Выберите действие:",
         reply_markup=get_admin_main_menu(),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_TASKS")
@@ -121,11 +121,11 @@ async def handle_check_tasks(callback: CallbackQuery):
     Обработка "📋 Проверка заданий".
     См. SPEC.md раздел 7.2
     """
+    await callback.answer()
     await callback.message.edit_text(
         "📋 Проверка заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_check_tasks_menu(),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_TODAY_BY_CHILD")
@@ -134,6 +134,7 @@ async def handle_check_today_by_child(callback: CallbackQuery):
     Показ заданий на сегодня по всем детям.
     См. SPEC.md раздел 7.2.1
     """
+    await callback.answer()
     from db.database import AsyncSessionLocal
     from db.models import Task, TaskStatus
     from sqlalchemy import select
@@ -174,12 +175,12 @@ async def handle_check_today_by_child(callback: CallbackQuery):
             text = "\n".join(lines)
 
     await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_BY_CHILD_SELECT")
 async def handle_check_by_child_select(callback: CallbackQuery):
     """По ребёнку: показать список детей для выбора заданий на сегодня"""
+    await callback.answer()
     from db.database import AsyncSessionLocal
     from db.models import User, UserRole
     from sqlalchemy import select
@@ -196,7 +197,6 @@ async def handle_check_by_child_select(callback: CallbackQuery):
             "👦 По ребёнку\n\nНет активных детей.",
             reply_markup=get_admin_check_tasks_menu(),
         )
-        await callback.answer()
         return
 
     buttons = [
@@ -212,7 +212,6 @@ async def handle_check_by_child_select(callback: CallbackQuery):
         "👦 По ребёнку\n\nВыберите ребёнка, чтобы увидеть задания на сегодня:",
         reply_markup=keyboard,
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_CHECK_CHILD:"))
@@ -229,6 +228,7 @@ async def handle_check_child_tasks(callback: CallbackQuery):
         if not child or child.role != UserRole.CHILD:
             await callback.answer("Ребёнок не найден", show_alert=True)
             return
+        await callback.answer()
         result = await session.execute(
             select(Task)
             .options(selectinload(Task.task_type))
@@ -259,12 +259,12 @@ async def handle_check_child_tasks(callback: CallbackQuery):
         ],
     ])
     await callback.message.edit_text(text, reply_markup=back_keyboard)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_NEED_REVIEW")
 async def handle_check_need_review(callback: CallbackQuery):
     """Требуют проверки: задания на сегодня со статусом pending (ожидают подтверждения)"""
+    await callback.answer()
     from db.database import AsyncSessionLocal
     from db.models import Task, TaskStatus
     from sqlalchemy import select
@@ -289,12 +289,12 @@ async def handle_check_need_review(callback: CallbackQuery):
         text = "\n".join(lines)
 
     await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_FAILED_TODAY")
 async def handle_check_failed_today(callback: CallbackQuery):
     """Просроченные / не сделаны: задания на сегодня со статусом failed, expired или pending"""
+    await callback.answer()
     from db.database import AsyncSessionLocal
     from db.models import Task, TaskStatus
     from sqlalchemy import select
@@ -334,7 +334,6 @@ async def handle_check_failed_today(callback: CallbackQuery):
         text = "\n".join(lines)
 
     await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHILDREN")
@@ -343,6 +342,7 @@ async def handle_children(callback: CallbackQuery):
     Обработка "👦 Дети".
     См. SPEC.md раздел 7.5
     """
+    await callback.answer()
     from bot.keyboards.admin import get_admin_children_menu
     await callback.message.edit_text(
         "👦 Дети\n\n"
@@ -351,8 +351,6 @@ async def handle_children(callback: CallbackQuery):
         "🔐 Доступы → ➕ Добавить пользователя → выберите роль 'Пользователь'",
         reply_markup=get_admin_children_menu(),
     )
-    await callback.answer()
-
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REWARDS")
@@ -361,13 +359,12 @@ async def handle_rewards_menu(callback: CallbackQuery):
     Обработка "🗂 Карточки заданий".
     Показывает меню с двумя кнопками: Список карточек и Создать новую.
     """
+    await callback.answer()
     from bot.keyboards.admin import get_admin_rewards_menu
-
     await callback.message.edit_text(
         "🗂 Карточки заданий\n\n" "Выберите действие:",
         reply_markup=get_admin_rewards_menu(),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_ACCESS")
@@ -388,44 +385,44 @@ async def handle_reports(callback: CallbackQuery):
     Обработка "📊 Отчёты".
     См. SPEC.md раздел 7.7
     """
+    await callback.answer()
     await callback.message.edit_text(
         "📊 Отчёты\n\n" "Выберите период:",
         reply_markup=get_admin_reports_menu(),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_TODAY")
 async def handle_report_period_today(callback: CallbackQuery):
     """Выбран период 'сегодня' - показываем меню типа отчета"""
+    await callback.answer()
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
         "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("today"),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_YESTERDAY")
 async def handle_report_period_yesterday(callback: CallbackQuery):
     """Выбран период 'вчера' - показываем меню типа отчета"""
+    await callback.answer()
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
         "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("yesterday"),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_REPORT_PERIOD_WEEK")
 async def handle_report_period_week(callback: CallbackQuery):
     """Выбран период 'за неделю' - показываем меню типа отчета"""
+    await callback.answer()
     from bot.keyboards.admin import get_admin_report_type_menu
     await callback.message.edit_text(
         "📊 Отчёты\n\n" "Выберите тип отчета:",
         reply_markup=get_admin_report_type_menu("week"),
     )
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_REPORT_TOTAL:"))

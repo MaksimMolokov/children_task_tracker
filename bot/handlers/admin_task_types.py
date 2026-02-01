@@ -33,6 +33,7 @@ router.callback_query.middleware(AdminMiddleware())
 @router.callback_query(lambda c: c.data == "ADMIN_ASSIGN_TASK_LIST")
 async def handle_assign_task_list(callback: CallbackQuery):
     """Список карточек для назначения задания"""
+    await callback.answer()
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     async with AsyncSessionLocal() as session:
@@ -79,7 +80,6 @@ async def handle_assign_task_list(callback: CallbackQuery):
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard)
-    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_ASSIGN_TASK_SELECT:"))
@@ -93,6 +93,7 @@ async def handle_assign_task_select(callback: CallbackQuery):
         if not task_type or not task_type.is_active:
             await callback.answer("Карточка не найдена", show_alert=True)
             return
+        await callback.answer()
 
         # Получаем расписание для этой карточки
         schedule_result = await session.execute(
@@ -153,7 +154,6 @@ async def handle_assign_task_select(callback: CallbackQuery):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(text, reply_markup=keyboard)
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_ASSIGN_TASK_OK:"))
@@ -168,6 +168,7 @@ async def handle_assign_task_ok(callback: CallbackQuery):
             await callback.answer("Карточка не найдена", show_alert=True)
             return
 
+        await callback.answer()
         # Получаем активных детей
         from sqlalchemy import select
         result = await session.execute(
@@ -192,16 +193,13 @@ async def handle_assign_task_ok(callback: CallbackQuery):
             InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_ASSIGN_TASK_SELECT:{task_type_id}"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
             f"🚀 Назначение задания\n\n"
             f"📋 {task_type.name}\n\n"
             f"Выберите ребёнка, которому назначить это задание:",
             reply_markup=keyboard,
         )
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_ASSIGN_TASK_CHILD:"))
@@ -218,6 +216,7 @@ async def handle_assign_task_child_selected(callback: CallbackQuery):
         if not child or not task_type:
             await callback.answer("Ошибка: данные не найдены", show_alert=True)
             return
+        await callback.answer()
 
         text = (
             f"Подтверждаете назначение карточки \"{task_type.name}\" для \"{child.display_name}\"?"
@@ -239,12 +238,12 @@ async def handle_assign_task_child_selected(callback: CallbackQuery):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(text, reply_markup=keyboard)
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_TASK_TYPE_LIST")
 async def handle_task_type_list(callback: CallbackQuery):
     """Список всех типов заданий с кнопками удаления"""
+    await callback.answer()
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     async with AsyncSessionLocal() as session:
@@ -311,7 +310,6 @@ async def handle_task_type_list(callback: CallbackQuery):
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard)
-    await callback.answer()
 
 
 def _format_schedule_line(schedule) -> str:
@@ -348,6 +346,7 @@ async def handle_task_type_select(callback: CallbackQuery):
         if not task_type or not task_type.is_active:
             await callback.answer("Карточка не найдена", show_alert=True)
             return
+        await callback.answer()
 
         # Загружаем активные расписания для этой карточки
         schedules_result = await session.execute(
@@ -387,7 +386,6 @@ async def handle_task_type_select(callback: CallbackQuery):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(text, reply_markup=keyboard)
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_ASSIGN:"))
@@ -402,8 +400,6 @@ async def handle_task_type_assign(callback: CallbackQuery):
             await callback.answer("Карточка не найдена", show_alert=True)
             return
 
-        # Получаем активных детей
-        from sqlalchemy import select
         result = await session.execute(
             select(User).where(User.role == UserRole.CHILD, User.is_active == True)
         )
@@ -412,6 +408,7 @@ async def handle_task_type_assign(callback: CallbackQuery):
         if not children:
             await callback.answer("Нет активных детей", show_alert=True)
             return
+        await callback.answer()
 
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
         buttons = []
@@ -426,16 +423,13 @@ async def handle_task_type_assign(callback: CallbackQuery):
             InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ADMIN_TASK_TYPE_SELECT:{task_type.id}"),
             InlineKeyboardButton(text="🏠 Главное меню", callback_data="ADMIN_BACK_MAIN")
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
         await callback.message.edit_text(
             f"🚀 Назначение задания\n\n"
             f"📋 {task_type.name}\n\n"
             f"Выберите ребёнка, которому назначить это задание:",
             reply_markup=keyboard,
         )
-        await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_ASSIGN_TASK_DO:"))

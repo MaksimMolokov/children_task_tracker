@@ -1,7 +1,6 @@
 """
 Обработчики для управления доступами (админы и пользователи).
 """
-import asyncio
 import logging
 
 from aiogram import Router
@@ -170,11 +169,7 @@ async def handle_user_name(message: Message, state: FSMContext):
             "❌ Имя должно быть от 1 до 100 символов. Попробуйте снова:",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
         return
 
     await state.update_data(user_name=name)
@@ -208,11 +203,7 @@ async def handle_user_telegram_id(message: Message, state: FSMContext):
             "❌ Telegram ID должен быть положительным числом. Попробуйте снова:",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
         return
 
     # Проверка, не существует ли уже пользователь с таким Telegram ID
@@ -228,11 +219,7 @@ async def handle_user_telegram_id(message: Message, state: FSMContext):
                 f"Проверьте правильность ID и попробуйте снова:",
                 reply_markup=get_back_button_menu(),
             )
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except Exception:
-                pass
+            schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
             return
 
     await state.update_data(user_telegram_id=telegram_user_id)
@@ -339,22 +326,14 @@ async def handle_user_age(message: Message, state: FSMContext):
                 "❌ Возраст должен быть от 1 до 18 лет. Попробуйте снова:",
                 reply_markup=get_back_button_menu(),
             )
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except Exception:
-                pass
+            schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
             return
     except ValueError:
         error_msg = await message.answer(
             "❌ Пожалуйста, введите число (возраст от 1 до 18):",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id, 5)
         return
 
     # Сохраняем возраст (обязательное поле)
