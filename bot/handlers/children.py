@@ -10,6 +10,7 @@ from aiogram.types import CallbackQuery, Message, ForceReply
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
+from bot.keyboards.callbacks import TASK_COMPLETE
 from bot.keyboards.inline import get_task_completion_keyboard
 from bot.config import ADMIN_TELEGRAM_ID
 from db.database import AsyncSessionLocal
@@ -22,24 +23,31 @@ logger = logging.getLogger(__name__)
 
 
 async def notify_admin_about_completion(bot: Bot, task: Task, child_name: str, has_media: bool = False):
-    """Уведомление администратора о выполнении задания"""
+    """Уведомление администратора/родителя о выполнении задания"""
     if not ADMIN_TELEGRAM_ID:
         return
 
     try:
-        media_text = " (с отчетом)" if has_media else ""
-        await bot.send_message(
-            chat_id=ADMIN_TELEGRAM_ID,
-            text=f"✅ Задание выполнено!\n\n"
-                 f"👦 Ребенок: {child_name}\n"
-                 f"📋 Задание: {task.task_type.name}\n"
-                 f"💰 Награда: {task.reward_amount} ARS{media_text}"
-        )
+        notify_parent = getattr(task.task_type, "notify_on_completion", False)
+        if notify_parent:
+            await bot.send_message(
+                chat_id=ADMIN_TELEGRAM_ID,
+                text=f"🔔 Ребёнок {child_name} выполнил задание «{task.task_type.name}» только что."
+            )
+        else:
+            media_text = " (с отчетом)" if has_media else ""
+            await bot.send_message(
+                chat_id=ADMIN_TELEGRAM_ID,
+                text=f"✅ Задание выполнено!\n\n"
+                     f"👦 Ребенок: {child_name}\n"
+                     f"📋 Задание: {task.task_type.name}\n"
+                     f"💰 Награда: {task.reward_amount} ARS{media_text}"
+            )
     except Exception as e:
         logger.error(f"Failed to notify admin: {e}")
 
 
-@router.callback_query(lambda c: c.data == "task_complete")
+@router.callback_query(lambda c: c.data == TASK_COMPLETE)
 async def handle_task_complete_callback(callback: CallbackQuery):
     """
     Обработка нажатия кнопки "✅ Выполнил"
@@ -122,31 +130,87 @@ async def handle_task_complete_callback(callback: CallbackQuery):
         await callback.answer("Произошла ошибка при обработке выполнения", show_alert=True)
 
 
+@router.message(lambda m: m.reply_to_message and not (m.photo or m.video or m.document))
+async def handle_text_reply_to_task(message: Message):
+    """
+    Обработка ответа текстом (или другим не-медиа) на задание с requires_media.
+    Повторяем запрос на скриншот/фото.
+    """
+    reply_message_id = message.reply_to_message.message_id
+    chat_id = message.chat.id
+
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Task)
+                .options(selectinload(Task.task_type))
+                .where(
+                    or_(
+                        Task.message_id == reply_message_id,
+                        Task.prompt_message_id == reply_message_id
+                    ),
+                    Task.chat_id == chat_id,
+                    Task.status == TaskStatus.PENDING
+                )
+            )
+            task = result.scalar_one_or_none()
+
+            if not task or not task.task_type.requires_media:
+                return
+
+            reminder_msg = await message.answer(
+                "📸 В качестве подтверждения выполнения задания нужен скриншот или фото. "
+                "Пожалуйста, пришли фото или скриншот ответом на сообщение с заданием."
+            )
+            task.reminder_message_id = reminder_msg.message_id
+            await session.commit()
+    except Exception as e:
+        logger.error(f"Error handling text reply to task: {e}", exc_info=True)
+
+
 @router.message(lambda m: m.photo or m.video or m.document)
 async def handle_media(message: Message):
     """
     Обработка медиа (фото/видео/документы) от детей
     """
-    if not message.reply_to_message:
-        await message.answer(
-            "Пожалуйста, отправьте медиа ответом на сообщение с заданием "
-            "(нажмите на сообщение и выберите 'Ответить')."
-        )
-        return
-    
-    reply_message_id = message.reply_to_message.message_id
     chat_id = message.chat.id
-    
+    reply_message_id = message.reply_to_message.message_id if message.reply_to_message else None
+
+    if not message.reply_to_message:
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(Task)
+                    .options(selectinload(Task.task_type), selectinload(Task.child))
+                    .where(
+                        Task.chat_id == chat_id,
+                        Task.status == TaskStatus.PENDING
+                    )
+                    .order_by(Task.created_at.desc())
+                    .limit(1)
+                )
+                task = result.scalar_one_or_none()
+                if task and task.task_type.requires_media:
+                    reminder_msg = await message.answer(
+                        "📸 Ответьте фото или скриншотом на сообщение с заданием "
+                        "(нажмите на сообщение с кнопкой «Выполнил» и выберите «Ответить»)."
+                    )
+                    task.reminder_message_id = reminder_msg.message_id
+                    await session.commit()
+        except Exception as e:
+            logger.error(f"Error handling media without reply: {e}", exc_info=True)
+        return
+
     try:
         async with AsyncSessionLocal() as session:
-            # Находим задание по message_id (оригинальное) или prompt_message_id (просьба отчета)
             result = await session.execute(
                 select(Task)
                 .options(selectinload(Task.task_type), selectinload(Task.child))
                 .where(
                     or_(
                         Task.message_id == reply_message_id,
-                        Task.prompt_message_id == reply_message_id
+                        Task.prompt_message_id == reply_message_id,
+                        Task.reminder_message_id == reply_message_id
                     ),
                     Task.chat_id == chat_id,
                     Task.status == TaskStatus.PENDING

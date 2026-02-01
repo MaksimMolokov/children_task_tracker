@@ -10,9 +10,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from bot.config import BOT_TOKEN, TIMEZONE
+from bot.config import ADMIN_TELEGRAM_ID, BOT_TOKEN, TIMEZONE
 from bot.handlers import admin, admin_menu, children, common
-from db.database import close_db, init_db
+from db.database import AsyncSessionLocal, close_db, init_db
+from db.models import User, UserRole
 from scheduler.jobs import set_bot_instance, setup_scheduler
 
 # Настройка логирования
@@ -30,6 +31,30 @@ async def lifespan(app):
     logger.info("Инициализация приложения...")
     await init_db()
     logger.info("База данных инициализирована")
+
+    # Гарантируем, что пользователь из ADMIN_TELEGRAM_ID есть в БД как активный админ
+    if ADMIN_TELEGRAM_ID:
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(User).where(User.telegram_user_id == ADMIN_TELEGRAM_ID)
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                user = User(
+                    telegram_user_id=ADMIN_TELEGRAM_ID,
+                    role=UserRole.ADMIN,
+                    display_name="Админ",
+                    is_active=True,
+                )
+                session.add(user)
+                await session.commit()
+                logger.info("Создан админ из ADMIN_TELEGRAM_ID: %s", ADMIN_TELEGRAM_ID)
+            elif user.role != UserRole.ADMIN or not user.is_active:
+                user.role = UserRole.ADMIN
+                user.is_active = True
+                await session.commit()
+                logger.info("Обновлён админ из ADMIN_TELEGRAM_ID: %s", ADMIN_TELEGRAM_ID)
 
     # Настройка планировщика
     scheduler = setup_scheduler()

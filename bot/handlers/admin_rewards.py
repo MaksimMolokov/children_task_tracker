@@ -1,7 +1,6 @@
 """
 Обработчики для управления ставками и типами заданий.
 """
-import asyncio
 import logging
 from datetime import time
 
@@ -12,6 +11,15 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.handlers.fsm_states import AddTaskTypeStates, SetRewardStates
 from bot.keyboards.admin import get_admin_rewards_menu, get_back_button_menu
+from bot.keyboards.callbacks import (
+    REWARD_REPORT_YES,
+    REWARD_REPORT_NO,
+    REWARD_NOTIFY_YES,
+    REWARD_NOTIFY_NO,
+    REWARD_CONFIRM_CREATE,
+    REWARD_RESTART,
+)
+from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
 from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScope, TaskCategory, TaskType, User, UserRole
 from decimal import Decimal
@@ -93,12 +101,7 @@ async def handle_task_type_name(message: Message, state: FSMContext):
             "❌ Название должно быть от 1 до 200 символов. Попробуйте снова:",
             reply_markup=get_back_button_menu(),
         )
-        # Удаляем сообщение об ошибке через 5 секунд
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
         return
 
     await state.update_data(task_type_name=name)
@@ -155,11 +158,7 @@ async def handle_task_type_execution_time(message: Message, state: FSMContext):
             error_msg_text = "❌ Время выполнения не может превышать 8 часов (480 минут):"
 
         error_msg = await message.answer(error_msg_text, reply_markup=get_back_button_menu())
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
         return
 
     await state.update_data(task_type_execution_time=execution_time)
@@ -195,9 +194,7 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
             error_msg_text = "❌ Сумма не может превышать 100,000 ARS:"
 
         error_msg = await message.answer(error_msg_text, reply_markup=get_back_button_menu())
-        await asyncio.sleep(5)
-        try: await error_msg.delete()
-        except: pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
         return
 
     # Сохраняем сумму в стейт
@@ -207,8 +204,8 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     buttons = [
         [
-            InlineKeyboardButton(text="📸 Да, нужен отчёт", callback_data="REPORT_YES"),
-            InlineKeyboardButton(text="✅ Нет, отчёт не нужен", callback_data="REPORT_NO"),
+            InlineKeyboardButton(text="📸 Да, нужен отчёт", callback_data=REWARD_REPORT_YES),
+            InlineKeyboardButton(text="✅ Нет, отчёт не нужен", callback_data=REWARD_REPORT_NO),
         ],
         [
             InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
@@ -226,15 +223,40 @@ async def handle_task_type_reward_amount(message: Message, state: FSMContext):
 
 
 
-@router.callback_query(lambda c: c.data in ["REPORT_YES", "REPORT_NO"])
+@router.callback_query(lambda c: c.data in [REWARD_REPORT_YES, REWARD_REPORT_NO])
 async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора необходимости отчета"""
-    requires_media = callback.data == "REPORT_YES"
+    requires_media = callback.data == REWARD_REPORT_YES
     await state.update_data(task_type_requires_media=requires_media)
 
-    # Переходим к созданию расписания
+    # Спрашиваем про уведомление при выполнении
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-    
+    buttons = [
+        [
+            InlineKeyboardButton(text="🔔 Да, уведомлять", callback_data=REWARD_NOTIFY_YES),
+            InlineKeyboardButton(text="🔕 Нет", callback_data=REWARD_NOTIFY_NO),
+        ],
+        [
+            InlineKeyboardButton(text="❌ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.edit_text(
+        "🔔 Уведомлять вас при выполнении задания?\n\n"
+        "При включении вы сразу получите сообщение, когда ребёнок выполнит это задание.",
+        reply_markup=keyboard
+    )
+    await state.set_state(AddTaskTypeStates.waiting_for_notify_choice)
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data in [REWARD_NOTIFY_YES, REWARD_NOTIFY_NO])
+async def handle_notify_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора уведомления при выполнении"""
+    notify_on_completion = callback.data == REWARD_NOTIFY_YES
+    await state.update_data(task_type_notify_on_completion=notify_on_completion)
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     buttons = [
         [
             InlineKeyboardButton(text="📅 Каждый день", callback_data="TASK_SCHEDULE_PERIOD_DAILY"),
@@ -256,7 +278,6 @@ async def handle_report_choice(callback: CallbackQuery, state: FSMContext):
         ]
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
     await callback.message.edit_text(
         "🗓 Создание расписания для карточки\n\n"
         "Выберите периодичность (когда бот будет напоминать о задании):",
@@ -543,11 +564,7 @@ async def handle_task_schedule_time_input(message: Message, state: FSMContext):
             "❌ Неверный формат времени. Используйте формат HH:MM (например, 09:30):",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
         return
 
     await state.update_data(schedule_time=schedule_time)
@@ -588,6 +605,7 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
     
     time_str = schedule_time.strftime("%H:%M") if schedule_time else "не указано"
     
+    notify_on_completion = data.get("task_type_notify_on_completion", False)
     summary_text = (
         f"📝 Проверка данных карточки задания\n\n"
         f"📋 Название: {data['task_type_name']}\n"
@@ -595,6 +613,7 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
         f"⏱ Время выполнения: {data.get('task_type_execution_time')} минут\n"
         f"💰 Стоимость: {data.get('task_type_reward_amount')} ARS\n"
         f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
+        f"🔔 Уведомление при выполнении: {'да' if notify_on_completion else 'нет'}\n"
         f"🗓 Расписание: {schedule_text}\n"
         f"🕐 Время отправки: {time_str}\n\n"
         f"Подтверждаете создание карточки?"
@@ -602,10 +621,10 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
 
     buttons = [
         [
-            InlineKeyboardButton(text="✅ Да, создать карточку", callback_data="CONFIRM_CREATE_TASK"),
+            InlineKeyboardButton(text="✅ Да, создать карточку", callback_data=REWARD_CONFIRM_CREATE),
         ],
         [
-            InlineKeyboardButton(text="❌ Нет, начать заново", callback_data="RESTART_TASK_CREATION"),
+            InlineKeyboardButton(text="❌ Нет, начать заново", callback_data=REWARD_RESTART),
         ],
         [
             InlineKeyboardButton(text="⬅️ Отмена (в меню)", callback_data="ADMIN_REWARDS"),
@@ -621,11 +640,12 @@ async def _show_task_card_summary(message_or_callback, state: FSMContext):
     await state.set_state(AddTaskTypeStates.waiting_for_confirmation)
 
 
-@router.callback_query(lambda c: c.data == "CONFIRM_CREATE_TASK")
+@router.callback_query(lambda c: c.data == REWARD_CONFIRM_CREATE)
 async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext):
     """Финальное создание карточки задания"""
     data = await state.get_data()
     requires_media = data.get("task_type_requires_media", False)
+    notify_on_completion = data.get("task_type_notify_on_completion", False)
 
     # Сохранение типа задания в БД
     async with AsyncSessionLocal() as session:
@@ -638,6 +658,7 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
             execution_time=data.get("task_type_execution_time"),
             reward_amount=data.get("task_type_reward_amount", Decimal("0.00")),
             requires_media=requires_media,
+            notify_on_completion=notify_on_completion,
             is_active=True,
         )
         session.add(task_type)
@@ -684,14 +705,16 @@ async def handle_confirm_create_task(callback: CallbackQuery, state: FSMContext)
         f"⏱ {task_type.execution_time} минут\n"
         f"💰 Стоимость: {data['task_type_reward_amount']} ARS\n"
         f"📸 Отчёт: {'требуется' if requires_media else 'не требуется'}\n"
+        f"🔔 Уведомление при выполнении: {'да' if notify_on_completion else 'нет'}\n"
         f"🆔 ID: {task_type.id}"
     )
 
     await callback.message.edit_text(result_text, reply_markup=keyboard)
+    schedule_message_delete(callback.bot, callback.message.chat.id, callback.message.message_id)
     await state.clear()
 
 
-@router.callback_query(lambda c: c.data == "RESTART_TASK_CREATION")
+@router.callback_query(lambda c: c.data == REWARD_RESTART)
 async def handle_restart_task_creation(callback: CallbackQuery, state: FSMContext):
     """Перезапуск создания карточки задания"""
     await state.clear()
@@ -994,22 +1017,14 @@ async def handle_reward_amount(message: Message, state: FSMContext):
                 "❌ Сумма должна быть положительной. Попробуйте снова:",
                 reply_markup=get_back_button_menu(),
             )
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except Exception:
-                pass
+            schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
             return
     except (ValueError, Exception):
         error_msg = await message.answer(
             "❌ Пожалуйста, введите число (сумма вознаграждения):",
             reply_markup=get_back_button_menu(),
         )
-        await asyncio.sleep(5)
-        try:
-            await error_msg.delete()
-        except Exception:
-            pass
+        schedule_message_delete(message.bot, message.chat.id, error_msg.message_id)
         return
 
     data = await state.get_data()

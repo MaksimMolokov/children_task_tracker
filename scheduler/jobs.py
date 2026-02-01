@@ -70,26 +70,6 @@ async def create_daily_tasks():
 
                 for child in children:
                     try:
-                        # Проверка существования задачи уже делается в TaskService
-                        task = await TaskService.create_task_for_child(
-                            session=session,
-                            child_id=child.id,
-                            task_type_id=schedule.task_type_id,
-                            scheduled_date=current_date,
-                            chat_id=0,  # TODO: Получить chat_id из настроек (личка или группа)
-                            message_id=0,  # Будет заполнено после отправки сообщения
-                        )
-
-                        # Отправка сообщения ребёнку
-                        task_type = schedule.task_type
-                        message_text = (
-                            f"{child.display_name}, твоё задание на сегодня:\n"
-                            f"📖 {task_type.name}\n"
-                            f"Награда: {task.reward_amount} {task.currency}\n\n"
-                            f"Когда выполнишь — нажми кнопку ниже и "
-                            f"(если нужно) пришли фото/видео ответом на это сообщение."
-                        )
-
                         # Определяем, куда отправлять: в семейный чат или в личку
                         if FAMILY_CHAT_ID:
                             target_chat_id = FAMILY_CHAT_ID
@@ -102,6 +82,26 @@ async def create_daily_tasks():
                                 continue
                             target_chat_id = child.telegram_user_id
                             chat_type = "личные сообщения"
+
+                        # Проверка существования задачи уже делается в TaskService
+                        task = await TaskService.create_task_for_child(
+                            session=session,
+                            child_id=child.id,
+                            task_type_id=schedule.task_type_id,
+                            scheduled_date=current_date,
+                            chat_id=target_chat_id,
+                            message_id=0,  # Будет заполнено после отправки сообщения
+                        )
+
+                        # Отправка сообщения ребёнку
+                        task_type = schedule.task_type
+                        message_text = (
+                            f"{child.display_name}, твоё задание на сегодня:\n"
+                            f"📖 {task_type.name}\n"
+                            f"Награда: {task.reward_amount} {task.currency}\n\n"
+                            f"Когда выполнишь — нажми кнопку ниже и "
+                            f"(если нужно) пришли фото/видео ответом на это сообщение."
+                        )
 
                         try:
                             sent_message = await bot_instance.send_message(
@@ -129,9 +129,8 @@ async def create_daily_tasks():
                                 )
                             continue  # Пропускаем этого ребёнка и переходим к следующему
 
-                        # Обновляем message_id и chat_id в задаче
+                        # Обновляем message_id в задаче (chat_id уже задан при создании)
                         task.message_id = sent_message.message_id
-                        task.chat_id = sent_message.chat.id
                         await session.commit()
 
                         logger.info(

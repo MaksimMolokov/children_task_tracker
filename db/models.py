@@ -135,6 +135,7 @@ class TaskType(Base):
     execution_time: Mapped[int] = mapped_column(nullable=True)  # Время выполнения в минутах
     reward_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)  # Стоимость выполнения
     requires_media: Mapped[bool] = mapped_column(Boolean, default=False)  # Необходимость прикладывать отчёт
+    notify_on_completion: Mapped[bool] = mapped_column(Boolean, default=False)  # Уведомлять родителя при выполнении
     frequency: Mapped[str] = mapped_column(Text, nullable=True)  # Частотность выполнения (daily, weekly, custom)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -210,6 +211,7 @@ class Task(Base):
     completed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     message_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # ID сообщения с заданием
     prompt_message_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # ID сообщения с просьбой отчета
+    reminder_message_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # ID напоминания (при ответе текстом/медиа без reply)
     chat_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # В каком чате отправлено
 
     # Relationships

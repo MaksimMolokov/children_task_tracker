@@ -48,10 +48,9 @@ class AdminMiddleware(BaseMiddleware):
         if not await is_admin(user_id):
             if isinstance(event, Message):
                 await event.answer("Эта команда доступна только администратору.")
-        elif isinstance(event, CallbackQuery):
+            elif isinstance(event, CallbackQuery):
                 await event.answer("Эта команда доступна только администратору.", show_alert=True)
-                return
-        
+            return
         return await handler(event, data)
 
 

@@ -5,6 +5,8 @@
 import logging
 
 from aiogram import Router
+
+from bot.utils.auto_delete import schedule_message_delete
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy import select
@@ -53,15 +55,17 @@ async def cmd_start(message: Message):
                     reply_markup=get_admin_main_menu(),
                 )
                 guide_text = format_admin_guide()
-                await message.answer(guide_text)
+                guide_msg = await message.answer(guide_text)
+                schedule_message_delete(message.bot, message.chat.id, guide_msg.message_id)
             elif user.role == UserRole.CHILD:
                 # Ребенок
-                await message.answer(
+                child_msg = await message.answer(
                     f"Привет, {user.display_name}!\n\n"
                     "Я бот для контроля выполнения заданий.\n"
                     "Твои задания будут приходить сюда. "
                     "Выполняй их и получай награды!"
                 )
+                schedule_message_delete(message.bot, message.chat.id, child_msg.message_id)
             else:
                 # Неизвестная роль
                 await message.answer(
@@ -78,11 +82,46 @@ async def cmd_start(message: Message):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    """Команда /help - показывает список доступных команд"""
-    # TODO: Реализовать динамический список команд в зависимости от роли пользователя
-    await message.answer(
-        "Доступные команды:\n"
-        "/start - Регистрация\n"
-        "/help - Список команд"
-    )
+    """Команда /help — список команд в зависимости от роли пользователя"""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(
+                User.telegram_user_id == message.from_user.id,
+                User.is_active == True
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            if user.role == UserRole.ADMIN:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — перезапуск и меню\n"
+                    "/admin — вход в админ-панель\n"
+                    "/help — этот список команд"
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+            elif user.role == UserRole.CHILD:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — приветствие\n"
+                    "/help — подсказка\n\n"
+                    "Задания приходят в чат. Нажми кнопку «✅ Выполнил» на сообщении с заданием. "
+                    "Если нужно — пришли фото или видео ответом на это сообщение."
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+            else:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — регистрация\n"
+                    "/help — список команд"
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+        else:
+            help_msg = await message.answer(
+                "Доступные команды:\n"
+                "/start — регистрация\n\n"
+                "Обратитесь к администратору для добавления в систему."
+            )
+            schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
 

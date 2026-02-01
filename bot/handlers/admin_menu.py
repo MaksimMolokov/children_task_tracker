@@ -49,33 +49,45 @@ logger = logging.getLogger(__name__)
 def format_admin_guide() -> str:
     """
     Форматирование гайда для администратора.
-    См. SPEC.md раздел 7.9
+    Отражает текущий функционал: Доступы, дети через Доступы, Карточки, Расписания, Отчёты, Лидеры, Тестирование.
     """
     return (
         "📖 Гайд по работе с ботом\n\n"
-        "1. Добавление бота в чат\n\n"
-        "Для того, чтобы бот мог выдавать задания детям:\n"
-        "1. Добавьте бота в групповой чат (или семейный чат)\n"
-        "2. Сделайте бота администратором чата\n"
-        "3. Детям нужно будет начать диалог с ботом (отправить /start) для регистрации\n\n"
+        "Бот выдаёт детям задания по расписанию, принимает подтверждение выполнения (кнопка и медиа), "
+        "считает выплаты по ставкам и отправляет ежедневные и еженедельные отчёты.\n\n"
+        "1. Первый запуск — Доступы\n\n"
+        "В разделе 🔐 Доступы добавьте администраторов и детей:\n"
+        "– Имя, Telegram ID (узнать можно через @userinfobot), роль (Админ / Пользователь)\n"
+        "– Для ребёнка укажите возраст. Дети добавляются только через Доступы.\n\n"
         "2. Как выдаются задания\n\n"
-        "Задания могут выдаваться двумя способами:\n\n"
-        "А) Автоматически по расписанию:\n"
-        "– Зайдите в меню 🗓 Расписания → ➕ Новое расписание\n"
-        "– Выберите тип задания, время, дни недели и детей\n"
-        "– Бот будет автоматически создавать задания и отправлять их в чат\n\n"
-        "Б) Вручную через админ-меню:\n"
-        "– Зайдите в ➕ Назначить задание\n"
-        "– Выберите ребёнка, тип задания и дату\n"
-        "– Задание будет создано и отправлено немедленно\n\n"
-        "3. Где видны задания\n\n"
-        "– Если настроен семейный чат (`FAMILY_CHAT_ID` в .env), задания отправляются туда\n"
-        "– Если не настроен, задания отправляются детям в личные сообщения\n"
-        "– Вы можете проверить статус всех заданий через 📋 Проверка заданий\n\n"
-        "4. Проверка выполненных заданий\n\n"
-        "– Дети нажимают кнопку \"✅ Выполнил\" на задании\n"
-        "– Если требуется медиа, дети отправляют фото/видео ответом на сообщение с заданием\n"
-        "– Вы можете вручную проверить и принять/отклонить задания через 📋 Проверка заданий"
+        "А) По расписанию: 🗓 Расписания → ➕ Новое расписание — выберите тип задания, время, дни недели и детей.\n"
+        "Б) Вручную: ➕ Назначить задание — выберите ребёнка и карточку задания.\n\n"
+        "3. Карточки заданий и ставки\n\n"
+        "🗂 Карточки заданий: создание типов заданий (название, описание, время, награда, требуется ли медиа). "
+        "Ставки по ребёнку настраиваются в том же разделе (по ребёнку или по типу задания).\n\n"
+        "4. Проверка заданий\n\n"
+        "📋 Проверка заданий: статус заданий на сегодня, по ребёнку, требующие проверки, просроченные. "
+        "Дети нажимают «✅ Выполнил» на задании; если нужно медиа — отправляют фото/видео ответом на сообщение с заданием.\n\n"
+        "5. Отчёты\n\n"
+        "📊 Отчёты: за сегодня, вчера или неделю; Итого по всем детям или по каждому ребёнку. "
+        "В отчёте указывается сумма выплаты за период.\n\n"
+        "6. Лидеры и Тестирование\n\n"
+        "🏆 Лидеры — просмотр по периоду. "
+        "🧪 Тестирование — отправка тестового уведомления ребёнку для проверки доставки.\n\n"
+        "7. Список команд\n\n"
+        "/start — приветствие и вход в систему. Показывает меню (для админа) или инструкцию (для ребёнка).\n\n"
+        "/admin — вход в админ-панель с выбором раздела (задания, дети, карточки, отчёты и т.д.).\n\n"
+        "/help — краткий список доступных команд.\n\n"
+        "Дополнительные команды (выполняются через меню):\n"
+        "/add_child — подсказка, как добавить ребёнка (через Доступы).\n"
+        "/add_task_type — подсказка по созданию карточки задания.\n"
+        "/list_task_types — подсказка по просмотру карточек.\n"
+        "/disable_task_type — подсказка по удалению карточки.\n"
+        "/set_reward — подсказка по настройке ставок.\n"
+        "/list_rewards — подсказка по списку ставок.\n"
+        "/add_schedule — подсказка по добавлению расписания.\n"
+        "/list_schedules — подсказка по списку расписаний.\n"
+        "/disable_schedule — подсказка по отключению расписания."
     )
 
 
@@ -122,7 +134,6 @@ async def handle_check_today_by_child(callback: CallbackQuery):
     Показ заданий на сегодня по всем детям.
     См. SPEC.md раздел 7.2.1
     """
-    # TODO: Реализовать получение задач за сегодня
     from db.database import AsyncSessionLocal
     from db.models import Task, TaskStatus
     from sqlalchemy import select
@@ -161,6 +172,166 @@ async def handle_check_today_by_child(callback: CallbackQuery):
                 lines.append("")
 
             text = "\n".join(lines)
+
+    await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_CHECK_BY_CHILD_SELECT")
+async def handle_check_by_child_select(callback: CallbackQuery):
+    """По ребёнку: показать список детей для выбора заданий на сегодня"""
+    from db.database import AsyncSessionLocal
+    from db.models import User, UserRole
+    from sqlalchemy import select
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.role == UserRole.CHILD, User.is_active == True)
+        )
+        children = result.scalars().all()
+
+    if not children:
+        await callback.message.edit_text(
+            "👦 По ребёнку\n\nНет активных детей.",
+            reply_markup=get_admin_check_tasks_menu(),
+        )
+        await callback.answer()
+        return
+
+    buttons = [
+        [InlineKeyboardButton(text=f"👦 {c.display_name}", callback_data=f"ADMIN_CHECK_CHILD:{c.id}")]
+        for c in children
+    ]
+    buttons.append([
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHECK_TASKS"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
+    ])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.edit_text(
+        "👦 По ребёнку\n\nВыберите ребёнка, чтобы увидеть задания на сегодня:",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_CHECK_CHILD:"))
+async def handle_check_child_tasks(callback: CallbackQuery):
+    """Задания на сегодня по выбранному ребёнку"""
+    child_id = int(callback.data.split(":")[1])
+    from db.database import AsyncSessionLocal
+    from db.models import Task, TaskStatus, User, UserRole
+    from sqlalchemy import select
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    async with AsyncSessionLocal() as session:
+        child = await session.get(User, child_id)
+        if not child or child.role != UserRole.CHILD:
+            await callback.answer("Ребёнок не найден", show_alert=True)
+            return
+        result = await session.execute(
+            select(Task)
+            .options(selectinload(Task.task_type))
+            .where(Task.scheduled_date == date.today(), Task.child_id == child_id)
+        )
+        tasks = result.scalars().all()
+
+    child_name = child.display_name or f"Ребёнок {child_id}"
+    if not tasks:
+        text = f"📅 Задания на сегодня — {child_name}\n\nНет заданий на сегодня."
+    else:
+        lines = [f"📅 Задания на сегодня — {child_name}\n"]
+        for task in tasks:
+            status_emoji = {
+                TaskStatus.DONE: "✅",
+                TaskStatus.FAILED: "❌",
+                TaskStatus.EXPIRED: "⏰",
+                TaskStatus.PENDING: "⏳",
+            }.get(task.status, "❓")
+            lines.append(f"– {task.task_type.name} — {status_emoji}")
+        text = "\n".join(lines)
+
+    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ К списку детей", callback_data="ADMIN_CHECK_BY_CHILD_SELECT")],
+        [
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_CHECK_TASKS"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
+        ],
+    ])
+    await callback.message.edit_text(text, reply_markup=back_keyboard)
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_CHECK_NEED_REVIEW")
+async def handle_check_need_review(callback: CallbackQuery):
+    """Требуют проверки: задания на сегодня со статусом pending (ожидают подтверждения)"""
+    from db.database import AsyncSessionLocal
+    from db.models import Task, TaskStatus
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        today = date.today()
+        result = await session.execute(
+            select(Task)
+            .options(selectinload(Task.child), selectinload(Task.task_type), selectinload(Task.media))
+            .where(Task.scheduled_date == today, Task.status == TaskStatus.PENDING)
+        )
+        tasks = result.scalars().all()
+
+    if not tasks:
+        text = "🔍 Требуют проверки\n\nНет заданий, ожидающих проверки на сегодня."
+    else:
+        lines = ["🔍 Требуют проверки (на сегодня)\n"]
+        for task in tasks:
+            child_name = task.child.display_name or f"Ребёнок {task.child_id}"
+            media_note = " 📸" if task.media else ""
+            lines.append(f"– {child_name}: {task.task_type.name}{media_note}")
+        text = "\n".join(lines)
+
+    await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "ADMIN_CHECK_FAILED_TODAY")
+async def handle_check_failed_today(callback: CallbackQuery):
+    """Просроченные / не сделаны: задания на сегодня со статусом failed, expired или pending"""
+    from db.database import AsyncSessionLocal
+    from db.models import Task, TaskStatus
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        today = date.today()
+        result = await session.execute(
+            select(Task)
+            .options(selectinload(Task.child), selectinload(Task.task_type))
+            .where(
+                Task.scheduled_date == today,
+                Task.status.in_([TaskStatus.PENDING, TaskStatus.FAILED, TaskStatus.EXPIRED]),
+            )
+        )
+        tasks = result.scalars().all()
+
+    if not tasks:
+        text = "❌ Просроченные / не сделаны\n\nНет таких заданий на сегодня."
+    else:
+        tasks_by_child = {}
+        for task in tasks:
+            child_name = task.child.display_name or f"Ребёнок {task.child_id}"
+            if child_name not in tasks_by_child:
+                tasks_by_child[child_name] = []
+            tasks_by_child[child_name].append(task)
+        lines = ["❌ Просроченные / не сделаны (на сегодня)\n"]
+        for child_name, child_tasks in tasks_by_child.items():
+            lines.append(f"👦 {child_name}")
+            for task in child_tasks:
+                status_emoji = {
+                    TaskStatus.PENDING: "⏳",
+                    TaskStatus.FAILED: "❌",
+                    TaskStatus.EXPIRED: "⏰",
+                }.get(task.status, "❓")
+                lines.append(f"– {task.task_type.name} — {status_emoji}")
+            lines.append("")
+        text = "\n".join(lines)
 
     await callback.message.edit_text(text, reply_markup=get_admin_check_tasks_menu())
     await callback.answer()
@@ -737,14 +908,18 @@ async def handle_other_admin_callbacks(callback: CallbackQuery):
         "ADMIN_ADD_TASK_TYPE",
         "ADMIN_REWARD_CHILD:",
         "ADMIN_REWARD_TASK_TYPE:",
+        "ADMIN_CHECK_BY_CHILD_SELECT",
+        "ADMIN_CHECK_NEED_REVIEW",
+        "ADMIN_CHECK_FAILED_TODAY",
     ] or callback.data.startswith((
-        "ADMIN_REWARD_CHILD:", 
+        "ADMIN_REWARD_CHILD:",
         "ADMIN_REWARD_TASK_TYPE:",
         "ADMIN_TASK_TYPE_DELETE:",
         "ADMIN_CHILD_DELETE:",
         "ADMIN_REWARD_TASK_TYPE_FIRST:",
         "ADMIN_REWARD_CHILD_SECOND:",
         "ADMIN_SCHEDULE",
+        "ADMIN_CHECK_CHILD:",
     )):
         return
     await callback.answer("Функция в разработке", show_alert=True)

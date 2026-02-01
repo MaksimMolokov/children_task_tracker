@@ -653,6 +653,8 @@ async def handle_schedule_confirm(callback: CallbackQuery, state: FSMContext):
         f"Бот будет автоматически отправлять напоминания по этому графику.",
         reply_markup=get_back_button_menu(),
     )
+    from bot.utils.auto_delete import schedule_message_delete
+    schedule_message_delete(callback.bot, callback.message.chat.id, callback.message.message_id)
     await state.clear()
 
 

@@ -314,6 +314,29 @@ async def handle_task_type_list(callback: CallbackQuery):
     await callback.answer()
 
 
+def _format_schedule_line(schedule) -> str:
+    """Форматирование одной записи расписания для отображения."""
+    days_of_week = schedule.days_of_week
+    if schedule.periodicity == SchedulePeriodicity.DAILY:
+        if days_of_week == "MON,TUE,WED,THU,FRI,SAT,SUN":
+            schedule_text = "Каждый день"
+        elif days_of_week == "MON,TUE,WED,THU,FRI":
+            schedule_text = "Будни (Пн-Пт)"
+        elif days_of_week == "SAT,SUN":
+            schedule_text = "Выходные (Сб-Вс)"
+        else:
+            days_list = days_of_week.split(",")
+            days_names = [DAYS_OF_WEEK.get(day, day) for day in days_list]
+            schedule_text = ", ".join(days_names)
+    elif schedule.periodicity == SchedulePeriodicity.WEEKLY:
+        day_name = DAYS_OF_WEEK.get(days_of_week, days_of_week)
+        schedule_text = f"Раз в неделю ({day_name})"
+    else:
+        schedule_text = "не указано"
+    time_str = schedule.time_of_day.strftime("%H:%M") if schedule.time_of_day else "не указано"
+    return f"{schedule_text}, время: {time_str}"
+
+
 @router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_SELECT:"))
 async def handle_task_type_select(callback: CallbackQuery):
     """Показ подробной информации о выбранной карточке"""
@@ -326,14 +349,32 @@ async def handle_task_type_select(callback: CallbackQuery):
             await callback.answer("Карточка не найдена", show_alert=True)
             return
 
+        # Загружаем активные расписания для этой карточки
+        schedules_result = await session.execute(
+            select(Schedule).where(
+                Schedule.task_type_id == task_type_id,
+                Schedule.is_active == True
+            )
+        )
+        schedules = schedules_result.scalars().all()
+
         exec_time = f"{task_type.execution_time} мин" if task_type.execution_time else "не указано"
         media_text = "требуется" if task_type.requires_media else "не требуется"
 
+        schedule_text = "не указано"
+        if schedules:
+            schedule_parts = [_format_schedule_line(s) for s in schedules]
+            schedule_text = "; ".join(schedule_parts)
+
+        reward_text = f"{task_type.reward_amount} ARS" if task_type.reward_amount else "не указано"
+
         text = (
             f"📋 Карточка задания: {task_type.name}\n\n"
-            f"📝 Описание: {task_type.description}\n"
+            f"📝 Описание: {task_type.description or 'не указано'}\n"
             f"⏱ Время выполнения: {exec_time}\n"
+            f"💰 Стоимость (базовая): {reward_text}\n"
             f"📸 Отчёт: {media_text}\n"
+            f"🗓 Расписание: {schedule_text}\n"
             f"🆔 ID: {task_type.id}"
         )
 
@@ -553,8 +594,6 @@ async def handle_assign_task_do(callback: CallbackQuery):
                 success_message,
                 reply_markup=get_back_button_menu()
             )
-        finally:
-            await bot.session.close()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_DELETE:"))

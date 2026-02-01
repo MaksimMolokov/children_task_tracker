@@ -3,6 +3,8 @@ Inline-кнопки для бота.
 """
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot.keyboards.callbacks import TASK_COMPLETE
+
 
 def get_task_completion_keyboard() -> InlineKeyboardMarkup:
     """
@@ -11,7 +13,7 @@ def get_task_completion_keyboard() -> InlineKeyboardMarkup:
     """
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Выполнил", callback_data="task_complete")]
+            [InlineKeyboardButton(text="✅ Выполнил", callback_data=TASK_COMPLETE)]
         ]
     )
     return keyboard

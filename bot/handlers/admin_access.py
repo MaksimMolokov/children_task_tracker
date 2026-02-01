@@ -12,6 +12,7 @@ from sqlalchemy import select, delete
 
 from bot.handlers.fsm_states import AddUserStates
 from bot.keyboards.admin import ADMIN_BACK_MAIN, get_back_button_menu
+from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
 from db.models import User, UserRole, Task, TaskMedia, ChildTaskReward
 
@@ -73,7 +74,7 @@ async def handle_access_list(callback: CallbackQuery):
                         if admin.telegram_user_id
                         else " (Telegram не привязан)"
                     )
-                    lines.append(f"  • {admin.display_name}{telegram_info}")
+                    lines.append(f"  • {admin.display_name} (Администратор){telegram_info}")
                     buttons.append([
                         InlineKeyboardButton(
                             text=f"🗑 Удалить {admin.display_name}",
@@ -90,7 +91,7 @@ async def handle_access_list(callback: CallbackQuery):
                         if child.telegram_user_id
                         else " (Telegram не привязан)"
                     )
-                    lines.append(f"  • {child.display_name}{age_text}{telegram_info}")
+                    lines.append(f"  • {child.display_name}{age_text} (Пользователь){telegram_info}")
                     buttons.append([
                         InlineKeyboardButton(
                             text=f"🗑 Удалить {child.display_name}",
@@ -466,6 +467,7 @@ async def handle_user_create(callback: CallbackQuery, state: FSMContext):
     )
     
     await callback.message.edit_text(success_text, reply_markup=view_button)
+    schedule_message_delete(callback.bot, callback.message.chat.id, callback.message.message_id)
     await state.clear()
     await callback.answer()
 
