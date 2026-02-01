@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import select, delete
 
+from bot.config import ADMIN_TELEGRAM_ID
 from bot.handlers.fsm_states import AddUserStates
 from bot.keyboards.admin import ADMIN_BACK_MAIN, get_back_button_menu
 from bot.utils.auto_delete import schedule_message_delete
@@ -66,6 +67,7 @@ async def handle_access_list(callback: CallbackQuery):
             admins = [u for u in users if u.role == UserRole.ADMIN]
             children = [u for u in users if u.role == UserRole.CHILD]
             
+            current_telegram_id = callback.from_user.id if callback.from_user else None
             if admins:
                 lines.append("\n👨‍💼 Администраторы:")
                 for admin in admins:
@@ -75,12 +77,18 @@ async def handle_access_list(callback: CallbackQuery):
                         else " (Telegram не привязан)"
                     )
                     lines.append(f"  • {admin.display_name} (Администратор){telegram_info}")
-                    buttons.append([
-                        InlineKeyboardButton(
-                            text=f"🗑 Удалить {admin.display_name}",
-                            callback_data=f"ADMIN_USER_DELETE:{admin.id}",
-                        )
-                    ])
+                    # Не показывать кнопку удаления для первичного админа и для себя
+                    can_delete_admin = (
+                        admin.telegram_user_id != ADMIN_TELEGRAM_ID
+                        and (current_telegram_id is None or admin.telegram_user_id != current_telegram_id)
+                    )
+                    if can_delete_admin:
+                        buttons.append([
+                            InlineKeyboardButton(
+                                text=f"🗑 Удалить {admin.display_name}",
+                                callback_data=f"ADMIN_USER_DELETE:{admin.id}",
+                            )
+                        ])
             
             if children:
                 lines.append("\n👦 Пользователи (дети):")
@@ -486,11 +494,11 @@ async def handle_user_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.answer("Создание отменено")
 
 
-@router.callback_query(lambda c: c.data.startswith("ADMIN_USER_DELETE:"))
-async def handle_user_delete(callback: CallbackQuery):
-    """Удаление пользователя и всех связанных данных"""
+@router.callback_query(lambda c: c.data.startswith("ADMIN_USER_DELETE_CONFIRM:"))
+async def handle_user_delete_confirm(callback: CallbackQuery):
+    """Фактическое удаление пользователя после подтверждения (с проверками)"""
     user_id = int(callback.data.split(":")[1])
-    
+
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(User).where(User.id == user_id)
@@ -502,43 +510,90 @@ async def handle_user_delete(callback: CallbackQuery):
             return
 
         user_name = user.display_name
+        telegram_id = user.telegram_user_id
+
+        # Запрет удаления первичного админа и себя
+        if telegram_id == ADMIN_TELEGRAM_ID:
+            await callback.answer(
+                "Нельзя удалить первичного администратора (указан в ADMIN_TELEGRAM_ID в .env).",
+                show_alert=True,
+            )
+            await handle_access_list(callback)
+            return
+        if callback.from_user and telegram_id == callback.from_user.id:
+            await callback.answer("Нельзя удалить самого себя.", show_alert=True)
+            await handle_access_list(callback)
+            return
+
         is_child = user.role == UserRole.CHILD
-        
+
         if is_child:
-            # Получаем все задания ребенка
             tasks_result = await session.execute(
                 select(Task).where(Task.child_id == user_id)
             )
             tasks = tasks_result.scalars().all()
-            
-            # Удаляем все медиа заданий ребенка
             task_ids = [task.id for task in tasks]
             if task_ids:
                 await session.execute(
                     delete(TaskMedia).where(TaskMedia.task_id.in_(task_ids))
                 )
                 logger.info(f"Deleted {len(task_ids)} TaskMedia records for user {user_id}")
-            
-            # Удаляем все задания ребенка
             if tasks:
                 await session.execute(
                     delete(Task).where(Task.child_id == user_id)
                 )
                 logger.info(f"Deleted {len(tasks)} Task records for user {user_id}")
-            
-            # Удаляем все ставки (награды) для ребенка
             await session.execute(
                 delete(ChildTaskReward).where(ChildTaskReward.child_id == user_id)
             )
             logger.info(f"Deleted ChildTaskReward records for user {user_id}")
-        
-        # Удаляем самого пользователя
+
         await session.delete(user)
         await session.commit()
-        
         logger.info(f"Completely deleted user {user_id} ({user_name}) and all related data")
 
-    await callback.answer(f"Пользователь {user_name} и вся связанная информация полностью удалены", show_alert=True)
-    
-    # Обновляем список
+    await callback.answer(
+        f"Пользователь {user_name} и вся связанная информация полностью удалены",
+        show_alert=True,
+    )
     await handle_access_list(callback)
+
+
+@router.callback_query(
+    lambda c: c.data.startswith("ADMIN_USER_DELETE:") and not c.data.startswith("ADMIN_USER_DELETE_CONFIRM:")
+)
+async def handle_user_delete(callback: CallbackQuery):
+    """Показ подтверждения перед удалением пользователя"""
+    user_id = int(callback.data.split(":")[1])
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            await callback.answer("Пользователь не найден", show_alert=True)
+            return
+
+        user_name = user.display_name or "пользователя"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Да, удалить",
+                    callback_data=f"ADMIN_USER_DELETE_CONFIRM:{user_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Отмена",
+                    callback_data="ADMIN_ACCESS_LIST",
+                ),
+            ]
+        ]
+    )
+    await callback.message.edit_text(
+        f"Вы уверены, что хотите удалить пользователя {user_name}?",
+        reply_markup=keyboard,
+    )
+    await callback.answer()

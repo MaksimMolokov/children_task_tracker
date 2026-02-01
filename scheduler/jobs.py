@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from pytz import timezone
 
-from bot.config import ADMIN_TELEGRAM_ID, FAMILY_CHAT_ID, TIMEZONE
+from bot.config import ADMIN_TELEGRAM_ID, TIMEZONE
 from bot.keyboards.inline import get_task_completion_keyboard
 from bot.services.report_service import ReportService
 from bot.services.schedule_service import ScheduleService
@@ -70,18 +70,13 @@ async def create_daily_tasks():
 
                 for child in children:
                     try:
-                        # Определяем, куда отправлять: в семейный чат или в личку
-                        if FAMILY_CHAT_ID:
-                            target_chat_id = FAMILY_CHAT_ID
-                            chat_type = "семейный чат"
-                        else:
-                            if not child.telegram_user_id:
-                                logger.warning(
-                                    f"Не указан Telegram ID для ребёнка {child.display_name}, пропускаем"
-                                )
-                                continue
-                            target_chat_id = child.telegram_user_id
-                            chat_type = "личные сообщения"
+                        # Отправляем только в личные сообщения ребёнка
+                        if not child.telegram_user_id:
+                            logger.warning(
+                                f"Не указан Telegram ID для ребёнка {child.display_name}, пропускаем"
+                            )
+                            continue
+                        target_chat_id = child.telegram_user_id
 
                         # Проверка существования задачи уже делается в TaskService
                         task = await TaskService.create_task_for_child(
@@ -112,17 +107,11 @@ async def create_daily_tasks():
                         except Exception as send_error:
                             error_msg = str(send_error).lower()
                             if "can't initiate conversation" in error_msg or "forbidden" in error_msg:
-                                if not FAMILY_CHAT_ID:
-                                    logger.error(
-                                        f"Не удалось отправить задание для {child.display_name}: "
-                                        f"ребёнок не начинал разговор с ботом. "
-                                        f"Рекомендуется настроить FAMILY_CHAT_ID или попросить ребёнка отправить /start боту."
-                                    )
-                                else:
-                                    logger.error(
-                                        f"Не удалось отправить задание в семейный чат {FAMILY_CHAT_ID}: "
-                                        f"{send_error}"
-                                    )
+                                logger.error(
+                                    f"Не удалось отправить задание для {child.display_name}: "
+                                    f"ребёнок не начинал разговор с ботом. "
+                                    f"Попросите ребёнка отправить /start боту в личные сообщения."
+                                )
                             else:
                                 logger.error(
                                     f"Ошибка при отправке задания для {child.display_name}: {send_error}"

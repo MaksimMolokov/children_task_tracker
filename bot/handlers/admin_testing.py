@@ -8,7 +8,6 @@ from aiogram import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from bot.config import FAMILY_CHAT_ID
 from bot.keyboards.admin import ADMIN_BACK_MAIN, get_back_button_menu
 from bot.middleware.auth import AdminMiddleware
 from db.database import AsyncSessionLocal
@@ -31,9 +30,8 @@ async def handle_testing_menu(callback: CallbackQuery):
         "🧪 Тестирование отправки уведомлений\n\n"
         "Здесь вы можете протестировать, как бот отправляет задания детям.\n\n"
         "⚠️ Важно:\n"
-        "• Если настроен семейный чат (`FAMILY_CHAT_ID`), сообщения отправляются туда\n"
-        "• Если нет, сообщения отправляются в личные сообщения ребёнка\n"
-        "• Для личных сообщений ребёнок должен отправить `/start` боту\n\n"
+        "• Сообщения отправляются в личные сообщения ребёнка\n"
+        "• Ребёнок должен отправить `/start` боту перед получением заданий\n\n"
         "Выберите ребёнка для тестового уведомления:"
     )
     
@@ -174,24 +172,16 @@ async def handle_test_task_type_selected(callback: CallbackQuery, state: FSMCont
         from bot.keyboards.inline import get_task_completion_keyboard
         keyboard = get_task_completion_keyboard()
         
-        # Определяем, куда отправлять
-        # Если настроен семейный чат, отправляем туда (предпочтительно)
-        if FAMILY_CHAT_ID:
-            chat_id = FAMILY_CHAT_ID
-            chat_type = "семейный чат"
-            fallback_to_pm = False
-        else:
-            # Иначе пытаемся отправить в личку ребёнка
-            if not child.telegram_user_id:
-                await callback.answer(
-                    f"❌ У ребёнка {child.display_name} не указан Telegram ID.\n\n"
-                    f"Добавьте его через меню 👦 Дети.",
-                    show_alert=True
-                )
-                return
-            chat_id = child.telegram_user_id
-            chat_type = "личные сообщения"
-            fallback_to_pm = True
+        # Отправляем только в личные сообщения ребёнка
+        if not child.telegram_user_id:
+            await callback.answer(
+                f"❌ У ребёнка {child.display_name} не указан Telegram ID.\n\n"
+                f"Добавьте его через меню 👦 Дети.",
+                show_alert=True
+            )
+            return
+        chat_id = child.telegram_user_id
+        chat_type = "личные сообщения"
         
         try:
             # Отправляем сообщение
@@ -240,30 +230,14 @@ async def handle_test_task_type_selected(callback: CallbackQuery, state: FSMCont
             
             # Проверяем, это ошибка "can't initiate conversation"
             if "can't initiate conversation" in error_msg or "forbidden" in error_msg:
-                if fallback_to_pm:
-                    # Если пытались отправить в личку и получили ошибку, предлагаем использовать семейный чат
-                    error_text = (
-                        f"❌ Не удалось отправить в личные сообщения\n\n"
-                        f"Причина: Ребёнок {child.display_name} не начинал разговор с ботом.\n\n"
-                        f"Решение:\n"
-                        f"1. Попросите ребёнка отправить `/start` боту в личные сообщения, ИЛИ\n"
-                        f"2. Настройте семейный чат (`FAMILY_CHAT_ID` в .env) и добавьте бота туда\n\n"
-                        f"Важно: В Telegram боты не могут первыми писать пользователям. "
-                        f"Пользователь должен отправить `/start` боту."
-                    )
-                else:
-                    # Если это семейный чат, значит бот не админ или чат неправильный
-                    error_text = (
-                        f"❌ Не удалось отправить в семейный чат\n\n"
-                        f"Возможные причины:\n"
-                        f"1. Бот не добавлен в чат с ID {FAMILY_CHAT_ID}\n"
-                        f"2. Бот не является администратором чата\n"
-                        f"3. Неправильный Chat ID\n\n"
-                        f"Решение:\n"
-                        f"1. Добавьте бота в групповой чат\n"
-                        f"2. Сделайте бота администратором\n"
-                        f"3. Убедитесь, что Chat ID правильный"
-                    )
+                error_text = (
+                    f"❌ Не удалось отправить в личные сообщения\n\n"
+                    f"Причина: Ребёнок {child.display_name} не начинал разговор с ботом.\n\n"
+                    f"Решение:\n"
+                    f"Попросите ребёнка отправить `/start` боту в личные сообщения.\n\n"
+                    f"Важно: В Telegram боты не могут первыми писать пользователям. "
+                    f"Пользователь должен отправить `/start` боту."
+                )
             else:
                 # Другая ошибка
                 error_text = (

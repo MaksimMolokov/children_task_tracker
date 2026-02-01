@@ -507,7 +507,7 @@ async def handle_assign_task_do(callback: CallbackQuery):
 
         # Отправляем уведомление ребёнку
         from bot.main import Bot
-        from bot.config import BOT_TOKEN, FAMILY_CHAT_ID
+        from bot.config import BOT_TOKEN
         from aiogram import Bot as AiogramBot
         from aiogram.client.default import DefaultBotProperties
         from aiogram.enums import ParseMode
@@ -565,28 +565,30 @@ async def handle_assign_task_do(callback: CallbackQuery):
         from bot.keyboards.inline import get_task_completion_keyboard
         keyboard = get_task_completion_keyboard()
 
-        chat_id = FAMILY_CHAT_ID if FAMILY_CHAT_ID else child.telegram_user_id
+        # Отправляем только в личные сообщения ребёнка
+        if not child.telegram_user_id:
+            await callback.answer("⚠️ У ребёнка не указан Telegram ID", show_alert=True)
+            await callback.message.edit_text(
+                success_message,
+                reply_markup=get_back_button_menu()
+            )
+            return
+
+        chat_id = child.telegram_user_id
 
         try:
-            if chat_id:
-                sent_message = await bot.send_message(chat_id=chat_id, text=message_text, reply_markup=keyboard)
-                # Сохраняем message_id и chat_id в задание
-                task.message_id = sent_message.message_id
-                task.chat_id = chat_id
-                await session.commit()
-                await session.refresh(task)
-                logger.info(f"Task assigned: task_id={task.id}, message_id={sent_message.message_id}, chat_id={chat_id}")
-                await callback.answer("✅ Задание отправлено!", show_alert=True)
-                await callback.message.edit_text(
-                    success_message,
-                    reply_markup=get_back_button_menu()
-                )
-            else:
-                await callback.answer("⚠️ Задача создана, но некуда отправить уведомление", show_alert=True)
-                await callback.message.edit_text(
-                    success_message,
-                    reply_markup=get_back_button_menu()
-                )
+            sent_message = await bot.send_message(chat_id=chat_id, text=message_text, reply_markup=keyboard)
+            # Сохраняем message_id и chat_id в задание
+            task.message_id = sent_message.message_id
+            task.chat_id = chat_id
+            await session.commit()
+            await session.refresh(task)
+            logger.info(f"Task assigned: task_id={task.id}, message_id={sent_message.message_id}, chat_id={chat_id}")
+            await callback.answer("✅ Задание отправлено!", show_alert=True)
+            await callback.message.edit_text(
+                success_message,
+                reply_markup=get_back_button_menu()
+            )
         except Exception as e:
             logger.error(f"Failed to send manual task: {e}")
             await callback.answer("⚠️ Задача создана, но ошибка отправки", show_alert=True)
