@@ -916,6 +916,8 @@ async def handle_other_admin_callbacks(callback: CallbackQuery):
         "ADMIN_REWARD_TASK_TYPE:",
         "ADMIN_TASK_TYPE_DELETE:",
         "ADMIN_CHILD_DELETE:",
+        "ADMIN_USER_DELETE:",
+        "ADMIN_USER_DELETE_CONFIRM:",
         "ADMIN_REWARD_TASK_TYPE_FIRST:",
         "ADMIN_REWARD_CHILD_SECOND:",
         "ADMIN_SCHEDULE",
