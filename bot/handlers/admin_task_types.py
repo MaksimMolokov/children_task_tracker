@@ -42,7 +42,7 @@ async def handle_assign_task_list(callback: CallbackQuery):
         task_types = result.scalars().all()
 
         if not task_types:
-            text = "📋 **Назначить задание**\n\n" "Карточки заданий ещё не созданы."
+            text = "📋 Назначить задание\n\n" "Карточки заданий ещё не созданы."
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(text="⬅️ Назад", callback_data="ADMIN_BACK_MAIN"),
@@ -50,7 +50,7 @@ async def handle_assign_task_list(callback: CallbackQuery):
                 ]
             ])
         else:
-            lines = ["📋 **Назначить задание**\n\n" "Выберите карточку задания:"]
+            lines = ["📋 Назначить задание\n\n" "Выберите карточку задания:"]
             buttons = []
 
             for task_type in task_types:
@@ -58,7 +58,7 @@ async def handle_assign_task_list(callback: CallbackQuery):
                 media_text = " (нужен отчёт)" if task_type.requires_media else ""
 
                 lines.append(
-                    f"📋 **{task_type.name}**\n"
+                    f"📋 {task_type.name}\n"
                     f"   ⏱ {exec_time}{media_text}"
                 )
 
@@ -131,12 +131,12 @@ async def handle_assign_task_select(callback: CallbackQuery):
         reward_text = f"{task_type.reward_amount} ARS" if task_type.reward_amount else "не указано"
 
         text = (
-            f"📋 **Карточка задания: {task_type.name}**\n\n"
-            f"📝 **Описание:** {task_type.description or 'не указано'}\n"
-            f"⏱ **Время выполнения:** {exec_time}\n"
-            f"💰 **Стоимость (базовая):** {reward_text}\n"
-            f"📸 **Отчёт:** {media_text}\n"
-            f"🗓 **Расписание:** {schedule_text}\n\n"
+            f"📋 Карточка задания: {task_type.name}\n\n"
+            f"📝 Описание: {task_type.description or 'не указано'}\n"
+            f"⏱ Время выполнения: {exec_time}\n"
+            f"💰 Стоимость (базовая): {reward_text}\n"
+            f"📸 Отчёт: {media_text}\n"
+            f"🗓 Расписание: {schedule_text}\n\n"
             f"Продолжить назначение этого задания?"
         )
 
@@ -196,8 +196,8 @@ async def handle_assign_task_ok(callback: CallbackQuery):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            f"🚀 **Назначение задания**\n\n"
-            f"📋 **{task_type.name}**\n\n"
+            f"🚀 Назначение задания\n\n"
+            f"📋 {task_type.name}\n\n"
             f"Выберите ребёнка, которому назначить это задание:",
             reply_markup=keyboard,
         )
@@ -254,7 +254,7 @@ async def handle_task_type_list(callback: CallbackQuery):
         task_types = result.scalars().all()
 
         if not task_types:
-            text = "📋 **Список карточек заданий**\n\n" "Карточки ещё не созданы."
+            text = "📋 Список карточек заданий\n\n" "Карточки ещё не созданы."
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(
@@ -268,7 +268,7 @@ async def handle_task_type_list(callback: CallbackQuery):
                 ]
             ])
         else:
-            lines = ["📋 **Список карточек заданий**\n"]
+            lines = ["📋 Список карточек заданий\n"]
             buttons = []
 
             for task_type in task_types:
@@ -276,7 +276,7 @@ async def handle_task_type_list(callback: CallbackQuery):
                 media_text = " (нужен отчёт)" if task_type.requires_media else ""
 
                 lines.append(
-                    f"📋 **{task_type.name}**\n"
+                    f"📋 {task_type.name}\n"
                     f"   ⏱ {exec_time}{media_text}"
                 )
 
@@ -314,6 +314,29 @@ async def handle_task_type_list(callback: CallbackQuery):
     await callback.answer()
 
 
+def _format_schedule_line(schedule) -> str:
+    """Форматирование одной записи расписания для отображения."""
+    days_of_week = schedule.days_of_week
+    if schedule.periodicity == SchedulePeriodicity.DAILY:
+        if days_of_week == "MON,TUE,WED,THU,FRI,SAT,SUN":
+            schedule_text = "Каждый день"
+        elif days_of_week == "MON,TUE,WED,THU,FRI":
+            schedule_text = "Будни (Пн-Пт)"
+        elif days_of_week == "SAT,SUN":
+            schedule_text = "Выходные (Сб-Вс)"
+        else:
+            days_list = days_of_week.split(",")
+            days_names = [DAYS_OF_WEEK.get(day, day) for day in days_list]
+            schedule_text = ", ".join(days_names)
+    elif schedule.periodicity == SchedulePeriodicity.WEEKLY:
+        day_name = DAYS_OF_WEEK.get(days_of_week, days_of_week)
+        schedule_text = f"Раз в неделю ({day_name})"
+    else:
+        schedule_text = "не указано"
+    time_str = schedule.time_of_day.strftime("%H:%M") if schedule.time_of_day else "не указано"
+    return f"{schedule_text}, время: {time_str}"
+
+
 @router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_SELECT:"))
 async def handle_task_type_select(callback: CallbackQuery):
     """Показ подробной информации о выбранной карточке"""
@@ -326,15 +349,33 @@ async def handle_task_type_select(callback: CallbackQuery):
             await callback.answer("Карточка не найдена", show_alert=True)
             return
 
+        # Загружаем активные расписания для этой карточки
+        schedules_result = await session.execute(
+            select(Schedule).where(
+                Schedule.task_type_id == task_type_id,
+                Schedule.is_active == True
+            )
+        )
+        schedules = schedules_result.scalars().all()
+
         exec_time = f"{task_type.execution_time} мин" if task_type.execution_time else "не указано"
         media_text = "требуется" if task_type.requires_media else "не требуется"
 
+        schedule_text = "не указано"
+        if schedules:
+            schedule_parts = [_format_schedule_line(s) for s in schedules]
+            schedule_text = "; ".join(schedule_parts)
+
+        reward_text = f"{task_type.reward_amount} ARS" if task_type.reward_amount else "не указано"
+
         text = (
-            f"📋 **Карточка задания: {task_type.name}**\n\n"
-            f"📝 **Описание:** {task_type.description}\n"
-            f"⏱ **Время выполнения:** {exec_time}\n"
-            f"📸 **Отчёт:** {media_text}\n"
-            f"🆔 **ID:** {task_type.id}"
+            f"📋 Карточка задания: {task_type.name}\n\n"
+            f"📝 Описание: {task_type.description or 'не указано'}\n"
+            f"⏱ Время выполнения: {exec_time}\n"
+            f"💰 Стоимость (базовая): {reward_text}\n"
+            f"📸 Отчёт: {media_text}\n"
+            f"🗓 Расписание: {schedule_text}\n"
+            f"🆔 ID: {task_type.id}"
         )
 
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -389,8 +430,8 @@ async def handle_task_type_assign(callback: CallbackQuery):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            f"🚀 **Назначение задания**\n\n"
-            f"📋 **{task_type.name}**\n\n"
+            f"🚀 Назначение задания\n\n"
+            f"📋 {task_type.name}\n\n"
             f"Выберите ребёнка, которому назначить это задание:",
             reply_markup=keyboard,
         )
@@ -504,17 +545,17 @@ async def handle_assign_task_do(callback: CallbackQuery):
                 schedule_days = "не указано"
             
             time_str = schedule.time_of_day.strftime("%H:%M") if schedule.time_of_day else "не указано"
-            schedule_info = f"\n🗓 **Расписание:** {schedule_days}, время: {time_str}"
+            schedule_info = f"\n🗓 Расписание: {schedule_days}, время: {time_str}"
 
         # Формируем информацию об отчете
         report_info = ""
         if task_type.requires_media:
-            report_info = "\n📸 **Требуется отчет:** При выполнении задания нужно приложить фото или видео"
+            report_info = "\n📸 Требуется отчет: При выполнении задания нужно приложить фото или видео"
         
         message_text = (
-            f"🔔 **НОВОЕ ЗАДАНИЕ**\n\n"
+            f"🔔 НОВОЕ ЗАДАНИЕ\n\n"
             f"{child.display_name}, тебе назначено задание:\n"
-            f"📋 **{task_type.name}**\n"
+            f"📋 {task_type.name}\n"
             f"📝 {task_type.description or ''}{report_info}\n"
             f"⏱ Время выполнения: {task_type.execution_time or 'не указано'} минут\n"
             f"💰 Награда: {reward_amount} ARS{schedule_info}\n\n"
@@ -553,8 +594,6 @@ async def handle_assign_task_do(callback: CallbackQuery):
                 success_message,
                 reply_markup=get_back_button_menu()
             )
-        finally:
-            await bot.session.close()
 
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_DELETE:"))

@@ -5,72 +5,75 @@
 import logging
 
 from aiogram import Router
+
+from bot.utils.auto_delete import schedule_message_delete
 from aiogram.filters import Command
 from aiogram.types import Message
+from sqlalchemy import select
 
-from bot.config import ADMIN_TELEGRAM_ID
 from db.database import AsyncSessionLocal
 from db.models import User, UserRole
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """
     Команда /start
-    См. SPEC.md раздел 4.1:
-    - При /start от админа (по ADMIN_TELEGRAM_ID) помечает его как admin
-    - Для остальных пользователей - обычное приветствие
+    Проверяет роль пользователя в базе данных и показывает соответствующее меню:
+    - ADMIN: админ-меню
+    - CHILD: приветствие для ребенка
+    - Не зарегистрирован: сообщение о регистрации
     """
-    from db.database import AsyncSessionLocal
-    
     async with AsyncSessionLocal() as session:
-        # Проверка, является ли пользователь админом
-        # Отладочная информация (можно удалить позже)
-        logger = logging.getLogger(__name__)
-        logger.info(f"Получен /start от пользователя ID: {message.from_user.id}, ожидаемый ADMIN_ID: {ADMIN_TELEGRAM_ID}")
+        user_id = message.from_user.id
+        logger.info(f"Получен /start от пользователя ID: {user_id}")
         
-        if message.from_user.id == ADMIN_TELEGRAM_ID:
-            # Проверка/создание записи админа в БД
-            from sqlalchemy import select
-
-            result = await session.execute(
-                select(User).where(User.telegram_user_id == message.from_user.id)
+        # Проверяем, есть ли пользователь в базе данных
+        result = await session.execute(
+            select(User).where(
+                User.telegram_user_id == user_id,
+                User.is_active == True
             )
-            user = result.scalar_one_or_none()
+        )
+        user = result.scalar_one_or_none()
 
-            if not user:
-                user = User(
-                    telegram_user_id=message.from_user.id,
-                    role=UserRole.ADMIN,
-                    display_name="Админ",
-                )
-                session.add(user)
-                await session.commit()
+        if user:
+            # Пользователь найден в БД
+            if user.role == UserRole.ADMIN:
+                # Администратор
                 from bot.keyboards.admin import get_admin_main_menu
                 from bot.handlers.admin_menu import format_admin_guide
 
                 await message.answer(
                     "Добро пожаловать, администратор!\n\n"
-                    "⚠️ **Важно:** для работы бота его нужно добавить в чат, где будут происходить выдача заданий, "
+                    "⚠️ Важно: для работы бота его нужно добавить в чат, где будут происходить выдача заданий, "
                     "и сделать администратором этого чата.\n\n"
                     "Используйте /admin для входа в админ-панель.",
                     reply_markup=get_admin_main_menu(),
                 )
                 guide_text = format_admin_guide()
-                await message.answer(guide_text)
+                guide_msg = await message.answer(guide_text)
+                schedule_message_delete(message.bot, message.chat.id, guide_msg.message_id)
+            elif user.role == UserRole.CHILD:
+                # Ребенок
+                child_msg = await message.answer(
+                    f"Привет, {user.display_name}!\n\n"
+                    "Я бот для контроля выполнения заданий.\n"
+                    "Твои задания будут приходить сюда. "
+                    "Выполняй их и получай награды!"
+                )
+                schedule_message_delete(message.bot, message.chat.id, child_msg.message_id)
             else:
-                from bot.keyboards.admin import get_admin_main_menu
-                from bot.handlers.admin_menu import format_admin_guide
-
+                # Неизвестная роль
                 await message.answer(
-                    "Вы уже зарегистрированы как администратор.\n\n"
-                    "⚠️ Не забудьте: бота нужно добавить в чат для выдачи заданий и сделать администратором.\n\n"
-                    "Используйте /admin для входа в админ-панель.",
-                    reply_markup=get_admin_main_menu(),
+                    "Привет! Я бот для контроля выполнения заданий. "
+                    "Обратитесь к администратору для регистрации."
                 )
         else:
+            # Пользователь не найден в БД
             await message.answer(
                 "Привет! Я бот для контроля выполнения заданий. "
                 "Обратитесь к администратору для регистрации."
@@ -79,11 +82,46 @@ async def cmd_start(message: Message):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    """Команда /help - показывает список доступных команд"""
-    # TODO: Реализовать динамический список команд в зависимости от роли пользователя
-    await message.answer(
-        "Доступные команды:\n"
-        "/start - Регистрация\n"
-        "/help - Список команд"
-    )
+    """Команда /help — список команд в зависимости от роли пользователя"""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(
+                User.telegram_user_id == message.from_user.id,
+                User.is_active == True
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            if user.role == UserRole.ADMIN:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — перезапуск и меню\n"
+                    "/admin — вход в админ-панель\n"
+                    "/help — этот список команд"
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+            elif user.role == UserRole.CHILD:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — приветствие\n"
+                    "/help — подсказка\n\n"
+                    "Задания приходят в чат. Нажми кнопку «✅ Выполнил» на сообщении с заданием. "
+                    "Если нужно — пришли фото или видео ответом на это сообщение."
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+            else:
+                help_msg = await message.answer(
+                    "Доступные команды:\n"
+                    "/start — регистрация\n"
+                    "/help — список команд"
+                )
+                schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+        else:
+            help_msg = await message.answer(
+                "Доступные команды:\n"
+                "/start — регистрация\n\n"
+                "Обратитесь к администратору для добавления в систему."
+            )
+            schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
 

@@ -35,3 +35,4 @@ class AutoDeleteMiddleware(BaseMiddleware):
 
         return result
 
+

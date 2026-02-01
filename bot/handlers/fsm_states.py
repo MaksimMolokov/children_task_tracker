@@ -18,6 +18,7 @@ class AddTaskTypeStates(StatesGroup):
     waiting_for_execution_time = State()
     waiting_for_reward_amount = State()
     waiting_for_report_choice = State()
+    waiting_for_notify_choice = State()
     waiting_for_schedule_periodicity = State()
     waiting_for_schedule_days = State()
     waiting_for_schedule_time = State()
@@ -39,5 +40,13 @@ class AddScheduleStates(StatesGroup):
     waiting_for_periodicity = State()
     waiting_for_days_of_week = State()
     waiting_for_time = State()
+
+
+class AddUserStates(StatesGroup):
+    """Состояния для добавления пользователя (админа или ребенка)"""
+    waiting_for_name = State()
+    waiting_for_telegram_id = State()
+    waiting_for_role = State()
+    waiting_for_age = State()  # Опционально, только для роли CHILD
 
 

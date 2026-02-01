@@ -73,3 +73,4 @@ class MediaService:
         return list(result.scalars().all())
 
 
+

@@ -78,7 +78,7 @@ async def handle_schedule_add_start(callback: CallbackQuery, state: FSMContext):
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            "🗓 **Новое расписание**\n\n"
+            "🗓 Новое расписание\n\n"
             "Выберите ребёнка, для которого создаётся расписание.\n"
             "Бот будет отправлять напоминания о заданиях в личные сообщения этому ребёнку:",
             reply_markup=keyboard,
@@ -134,7 +134,7 @@ async def handle_schedule_child_selected(callback: CallbackQuery, state: FSMCont
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(
-            f"🗓 **Новое расписание для {child.display_name}**\n\n"
+            f"🗓 Новое расписание для {child.display_name}\n\n"
             "Выберите задание из перечня:\n"
             "(Бот будет напоминать об этом задании в указанное время)",
             reply_markup=keyboard,
@@ -212,7 +212,7 @@ async def handle_schedule_task_type_selected(callback: CallbackQuery, state: FSM
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        f"🗓 **Новое расписание**\n\n"
+        f"🗓 Новое расписание\n\n"
         f"👦 Ребёнок: {child.display_name}\n"
         f"📋 Задание: {task_type.name}\n\n"
         f"Выберите периодичность (когда бот будет напоминать):",
@@ -278,7 +278,7 @@ async def handle_schedule_period_weekly(callback: CallbackQuery, state: FSMConte
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Новое расписание**\n\n" "Выберите день недели:",
+        "🗓 Новое расписание\n\n" "Выберите день недели:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -332,7 +332,7 @@ async def handle_schedule_period_custom(callback: CallbackQuery, state: FSMConte
     selected_text = f"Выбрано: {len(selected_days)}" if selected_days else "Выберите дни:"
 
     await callback.message.edit_text(
-        f"🗓 **Новое расписание**\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
+        f"🗓 Новое расписание\n\n{selected_text}\n\n" "Нажмите на день для выбора/снятия выбора:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -435,7 +435,7 @@ async def _show_time_selection(callback: CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(
-        "🗓 **Новое расписание**\n\n" "Выберите время отправки:",
+        "🗓 Новое расписание\n\n" "Выберите время отправки:",
         reply_markup=keyboard,
     )
     await callback.answer()
@@ -458,7 +458,7 @@ async def handle_schedule_time_selected(callback: CallbackQuery, state: FSMConte
 async def handle_schedule_time_custom(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени"""
     await callback.message.edit_text(
-        "🗓 **Новое расписание**\n\n"
+        "🗓 Новое расписание\n\n"
         "Введите время в формате HH:MM (например, 09:30):",
         reply_markup=get_back_button_menu(),
     )
@@ -552,17 +552,17 @@ async def _show_schedule_confirmation(message_or_callback, state: FSMContext):
         execution_time = f"{task_type.execution_time} мин" if task_type.execution_time else "не указано"
 
         confirmation_text = (
-            f"🗓 **Проверьте настройки расписания**\n\n"
-            f"👦 **Для кого:** {child.display_name}\n"
-            f"📋 **Задание:** {task_type.name}\n"
-            f"📝 **Описание:** {task_description}\n"
-            f"⏱ **Время выполнения:** {execution_time}\n"
-            f"💰 **Награда:** {reward_text}\n"
-            f"📅 **Как часто:** {days_text}\n"
-            f"🕐 **Во сколько:** {time_text}\n\n"
+            f"🗓 Проверьте настройки расписания\n\n"
+            f"👦 Для кого: {child.display_name}\n"
+            f"📋 Задание: {task_type.name}\n"
+            f"📝 Описание: {task_description}\n"
+            f"⏱ Время выполнения: {execution_time}\n"
+            f"💰 Награда: {reward_text}\n"
+            f"📅 Как часто: {days_text}\n"
+            f"🕐 Во сколько: {time_text}\n\n"
             f"Бот будет автоматически отправлять напоминание об этом задании "
             f"для {child.display_name} в указанные дни в {time_text}.\n\n"
-            f"❓ **Всё верно?**"
+            f"❓ Всё верно?"
         )
 
         buttons = [
@@ -644,15 +644,17 @@ async def handle_schedule_confirm(callback: CallbackQuery, state: FSMContext):
 
     await callback.answer("✅ Расписание создано!", show_alert=True)
     await callback.message.edit_text(
-        f"✅ **Расписание успешно создано!**\n\n"
-        f"📋 **Расписание #{schedule.id}**\n"
-        f"📌 **Задание:** {task_type.name}\n"
-        f"👦 **Ребёнок:** {child.display_name}\n"
-        f"🕐 **Время:** {time_text}\n"
-        f"📅 **Дни:** {days_text}\n\n"
+        f"✅ Расписание успешно создано!\n\n"
+        f"📋 Расписание #{schedule.id}\n"
+        f"📌 Задание: {task_type.name}\n"
+        f"👦 Ребёнок: {child.display_name}\n"
+        f"🕐 Время: {time_text}\n"
+        f"📅 Дни: {days_text}\n\n"
         f"Бот будет автоматически отправлять напоминания по этому графику.",
         reply_markup=get_back_button_menu(),
     )
+    from bot.utils.auto_delete import schedule_message_delete
+    schedule_message_delete(callback.bot, callback.message.chat.id, callback.message.message_id)
     await state.clear()
 
 
@@ -669,10 +671,10 @@ async def handle_schedule_list(callback: CallbackQuery):
         schedules = result.scalars().all()
 
         if not schedules:
-            text = "🗓 **Список расписаний**\n\n" "Расписания ещё не созданы."
+            text = "🗓 Список расписаний\n\n" "Расписания ещё не созданы."
             keyboard = get_back_button_menu()
         else:
-            lines = ["🗓 **Список расписаний**\n"]
+            lines = ["🗓 Список расписаний\n"]
             buttons = []
 
             for schedule in schedules:
@@ -767,7 +769,7 @@ async def handle_schedule_add_cancel(callback: CallbackQuery, state: FSMContext)
     """Отмена добавления расписания"""
     await state.clear()
     await callback.message.edit_text(
-        "🗓 **Расписания**\n\n" "Выберите действие:",
+        "🗓 Расписания\n\n" "Выберите действие:",
         reply_markup=get_back_button_menu(),
     )
     await callback.answer("Добавление отменено")

@@ -13,6 +13,7 @@ ADMIN_REWARDS = "ADMIN_REWARDS"
 ADMIN_REPORTS = "ADMIN_REPORTS"
 ADMIN_LEADERS = "ADMIN_LEADERS"
 ADMIN_TESTING = "ADMIN_TESTING"
+ADMIN_ACCESS = "ADMIN_ACCESS"
 ADMIN_BACK_MAIN = "ADMIN_BACK_MAIN"
 
 
@@ -33,6 +34,9 @@ def get_admin_main_menu() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="🗂 Карточки заданий", callback_data=ADMIN_REWARDS),
                 InlineKeyboardButton(text="📊 Отчёты", callback_data=ADMIN_REPORTS),
+            ],
+            [
+                InlineKeyboardButton(text="🔐 Доступы", callback_data=ADMIN_ACCESS),
             ],
             [
                 InlineKeyboardButton(text="🏆 Лидеры", callback_data=ADMIN_LEADERS),
@@ -92,12 +96,6 @@ def get_admin_children_menu() -> InlineKeyboardMarkup:
     """
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="➕ Добавить ребёнка",
-                    callback_data="ADMIN_CHILD_ADD",
-                ),
-            ],
             [
                 InlineKeyboardButton(
                     text="📃 Список детей",
@@ -227,6 +225,33 @@ def get_admin_leaders_menu() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="📅 За месяц",
                     callback_data="ADMIN_LEADERS_MONTH",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data=ADMIN_BACK_MAIN),
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN),
+            ],
+        ]
+    )
+    return keyboard
+
+
+def get_admin_access_menu() -> InlineKeyboardMarkup:
+    """
+    Меню управления доступами.
+    """
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Добавить пользователя",
+                    callback_data="ADMIN_USER_ADD",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📃 Список пользователей",
+                    callback_data="ADMIN_ACCESS_LIST",
                 ),
             ],
             [

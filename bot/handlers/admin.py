@@ -19,116 +19,81 @@ router.message.middleware(AdminMiddleware())
 
 @router.message(Command("add_child"))
 async def cmd_add_child(message: Message):
-    """
-    Команда /add_child
-    См. SPEC.md раздел 4.1:
-    - Бот спрашивает: "Как зовут ребёнка?"
-    - Затем просит переслать/ответить на сообщение от ребёнка
-    - Создаёт запись в users с ролью child
-    """
-    # TODO: Реализовать диалог для добавления ребёнка
+    """Команда /add_child — подсказка использовать меню"""
     await message.answer(
-        "Добавление ребёнка.\n"
-        "Как зовут ребёнка? (Отправьте имя)"
+        "Добавление детей выполняется через меню. "
+        "Используйте /admin → 🔐 Доступы → ➕ Добавить пользователя → выберите роль «Пользователь»."
     )
 
 
 @router.message(Command("add_task_type"))
 async def cmd_add_task_type(message: Message):
-    """
-    Команда /add_task_type
-    См. SPEC.md раздел 4.2:
-    - Диалог: название, описание, категория, требуется ли медиа
-    - Создаёт запись в task_types
-    """
-    # TODO: Реализовать диалог для добавления типа задания
+    """Команда /add_task_type — подсказка использовать меню"""
     await message.answer(
-        "Добавление типа задания.\n"
-        "Введите название задания:"
+        "Создание карточек заданий — в меню. "
+        "Используйте /admin → 🗂 Карточки заданий → ➕ Создать новую карточку."
     )
 
 
 @router.message(Command("list_task_types"))
 async def cmd_list_task_types(message: Message):
-    """
-    Команда /list_task_types
-    См. SPEC.md раздел 4.2:
-    - Показывает список активных шаблонов с ID-названиями
-    """
-    # TODO: Реализовать вывод списка типов заданий
-    await message.answer("Список типов заданий:\n(реализация в процессе)")
+    """Команда /list_task_types — подсказка использовать меню"""
+    await message.answer(
+        "Список карточек заданий — в меню. "
+        "Используйте /admin → 🗂 Карточки заданий → 📃 Список карточек."
+    )
 
 
 @router.message(Command("disable_task_type"))
 async def cmd_disable_task_type(message: Message):
-    """
-    Команда /disable_task_type <id>
-    См. SPEC.md раздел 4.2:
-    - Помечает is_active = false для указанного типа задания
-    """
-    # TODO: Реализовать отключение типа задания
-    await message.answer("Отключение типа задания.\nИспользование: /disable_task_type <id>")
+    """Команда /disable_task_type — подсказка использовать меню"""
+    await message.answer(
+        "Удаление карточки задания — в меню. "
+        "Используйте /admin → 🗂 Карточки заданий → 📃 Список карточек → выберите карточку → удалить."
+    )
 
 
 @router.message(Command("set_reward"))
 async def cmd_set_reward(message: Message):
-    """
-    Команда /set_reward
-    См. SPEC.md раздел 4.3:
-    - Диалог: выбор ребёнка, выбор задания, ввод суммы
-    - Создаёт/обновляет запись в child_task_rewards
-    """
-    # TODO: Реализовать диалог для настройки ставки
+    """Команда /set_reward — подсказка использовать меню"""
     await message.answer(
-        "Настройка денежной ставки.\n"
-        "Выберите ребёнка:"
+        "Настройка ставок — в меню. "
+        "Используйте /admin → 🗂 Карточки заданий → 💰 Установить ставку (по ребёнку или по заданию)."
     )
 
 
 @router.message(Command("list_rewards"))
 async def cmd_list_rewards(message: Message):
-    """
-    Команда /list_rewards [child_name]
-    См. SPEC.md раздел 4.3:
-    - Показывает все пары "задание → ставка" для ребёнка
-    """
-    # TODO: Реализовать вывод списка ставок
-    await message.answer("Список ставок:\n(реализация в процессе)")
+    """Команда /list_rewards — подсказка использовать меню"""
+    await message.answer(
+        "Список ставок настраивается в меню. "
+        "Используйте /admin → 🗂 Карточки заданий → 💰 Установить ставку."
+    )
 
 
 @router.message(Command("add_schedule"))
 async def cmd_add_schedule(message: Message):
-    """
-    Команда /add_schedule
-    См. SPEC.md раздел 4.4:
-    - Диалог: выбор TaskType, выбор детей, периодичность, время
-    - Создаёт запись в schedules
-    """
-    # TODO: Реализовать диалог для добавления расписания
+    """Команда /add_schedule — подсказка использовать меню"""
     await message.answer(
-        "Добавление расписания.\n"
-        "Выберите тип задания:"
+        "Добавление расписания — в меню. "
+        "Используйте /admin → 🗓 Расписания → ➕ Новое расписание."
     )
 
 
 @router.message(Command("list_schedules"))
 async def cmd_list_schedules(message: Message):
-    """
-    Команда /list_schedules
-    См. SPEC.md раздел 4.4:
-    - Показывает все активные расписания
-    """
-    # TODO: Реализовать вывод списка расписаний
-    await message.answer("Список расписаний:\n(реализация в процессе)")
+    """Команда /list_schedules — подсказка использовать меню"""
+    await message.answer(
+        "Список расписаний — в меню. "
+        "Используйте /admin → 🗓 Расписания → 📃 Список расписаний."
+    )
 
 
 @router.message(Command("disable_schedule"))
 async def cmd_disable_schedule(message: Message):
-    """
-    Команда /disable_schedule <id>
-    См. SPEC.md раздел 4.4:
-    - Помечает is_active = false для указанного расписания
-    """
-    # TODO: Реализовать отключение расписания
-    await message.answer("Отключение расписания.\nИспользование: /disable_schedule <id>")
+    """Команда /disable_schedule — подсказка использовать меню"""
+    await message.answer(
+        "Управление расписаниями — в меню. "
+        "Используйте /admin → 🗓 Расписания → 📃 Список расписаний → выберите расписание для отключения."
+    )
 

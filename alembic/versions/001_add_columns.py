@@ -27,3 +27,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column('tasks', 'prompt_message_id')
     op.drop_column('task_types', 'reward_amount')
+
