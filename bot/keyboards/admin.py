@@ -14,6 +14,7 @@ ADMIN_REPORTS = "ADMIN_REPORTS"
 ADMIN_LEADERS = "ADMIN_LEADERS"
 ADMIN_TESTING = "ADMIN_TESTING"
 ADMIN_ACCESS = "ADMIN_ACCESS"
+ADMIN_LOGS = "ADMIN_LOGS"
 ADMIN_BACK_MAIN = "ADMIN_BACK_MAIN"
 
 
@@ -44,6 +45,9 @@ def get_admin_main_menu() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="🧪 Тестирование", callback_data=ADMIN_TESTING),
             ],
+            [
+                InlineKeyboardButton(text="📜 Логи", callback_data=ADMIN_LOGS),
+            ],
         ]
     )
     return keyboard
@@ -58,7 +62,7 @@ def get_admin_check_tasks_menu() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📅 Сегодня по детям",
+                    text="📅 Задания на сегодня (✅/❌)",
                     callback_data="ADMIN_CHECK_TODAY_BY_CHILD",
                 ),
             ],

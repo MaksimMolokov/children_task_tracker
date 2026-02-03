@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from bot.keyboards.callbacks import TASK_COMPLETE
 from bot.keyboards.inline import get_task_completion_keyboard
 from bot.config import ADMIN_TELEGRAM_ID
+from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
 from db.models import MediaFileType, Task, TaskStatus, User
 
@@ -92,9 +93,13 @@ async def handle_task_complete_callback(callback: CallbackQuery):
                     task.status = TaskStatus.DONE
                     task.completed_at = datetime.utcnow()
                     await session.commit()
-                    
+                    logger.info(
+                        "task_completed: task_id=%s, child=%s, task_type=%s",
+                        task.id, task.child.display_name, task.task_type.name,
+                    )
                     await callback.answer("✅ Задание отмечено как выполненное!")
-                    await callback.message.reply("✅ Готово")
+                    done_msg = await callback.message.reply("✅ Готово")
+                    schedule_message_delete(callback.bot, callback.message.chat.id, done_msg.message_id, 15)
                     
                     # Уведомляем админа
                     child_name = task.child.display_name or "Ребенок"
@@ -117,9 +122,13 @@ async def handle_task_complete_callback(callback: CallbackQuery):
                 task.status = TaskStatus.DONE
                 task.completed_at = datetime.utcnow()
                 await session.commit()
-                
+                logger.info(
+                    "task_completed: task_id=%s, child=%s, task_type=%s",
+                    task.id, task.child.display_name, task.task_type.name,
+                )
                 await callback.answer("✅ Задание отмечено как выполненное!")
-                await callback.message.reply("✅ Готово")
+                done_msg = await callback.message.reply("✅ Готово")
+                schedule_message_delete(callback.bot, callback.message.chat.id, done_msg.message_id, 15)
                 
                 # Уведомляем админа
                 child_name = task.child.display_name or "Ребенок"
@@ -260,8 +269,12 @@ async def handle_media(message: Message):
             task.completed_at = datetime.utcnow()
             
             await session.commit()
-            
-            await message.answer("✅ Готово")
+            logger.info(
+                "task_completed: task_id=%s, child=%s, task_type=%s (with media)",
+                task.id, task.child.display_name, task.task_type.name,
+            )
+            done_msg = await message.answer("✅ Готово")
+            schedule_message_delete(message.bot, message.chat.id, done_msg.message_id, 15)
             
             # Уведомляем админа
             child_name = task.child.display_name or "Ребенок"

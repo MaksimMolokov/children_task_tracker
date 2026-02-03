@@ -3,6 +3,7 @@
 См. SPEC.md раздел 7 "Админ-меню и кнопки бота"
 """
 import logging
+import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -12,7 +13,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.config import ADMIN_TELEGRAM_ID
+from bot.config import ADMIN_TELEGRAM_ID, LOG_FILE
 
 # Названия дней недели на русском
 WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
@@ -36,8 +37,13 @@ from bot.keyboards.admin import (
     get_admin_rewards_menu,
     get_back_button_menu,
     ADMIN_BACK_MAIN,
+    ADMIN_LOGS,
 )
 from bot.middleware.auth import AdminMiddleware
+from bot.utils.auto_delete import schedule_message_delete
+
+# Задержка автоудаления сообщений отчётов и одноразовых ответов (сек)
+REPORT_AUTO_DELETE_SEC = 45
 
 router = Router()
 router.callback_query.middleware(AdminMiddleware())
@@ -113,6 +119,32 @@ async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
         "🔧 Админ-панель\n\n" "Выберите действие:",
         reply_markup=get_admin_main_menu(),
     )
+
+
+@router.callback_query(lambda c: c.data == ADMIN_LOGS)
+async def handle_admin_logs(callback: CallbackQuery):
+    """Отправка последних строк логов админу."""
+    await callback.answer()
+    max_lines = 200
+    max_chunk = 4000
+    try:
+        if not os.path.exists(LOG_FILE):
+            await callback.message.answer("📜 Логи\n\nФайл логов пока не создан.")
+            return
+        with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        last_lines = lines[-max_lines:] if len(lines) > max_lines else lines
+        text = "".join(last_lines).strip() or "Нет записей."
+        if len(text) > max_chunk:
+            while text:
+                chunk = text[:max_chunk]
+                text = text[max_chunk:]
+                await callback.message.answer(chunk)  # без HTML, чтобы не ломать разметку из-за символов в логах
+        else:
+            await callback.message.answer(text)
+    except Exception as e:
+        logger.exception("Ошибка при чтении логов")
+        await callback.message.answer(f"Ошибка при чтении логов: {e}")
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_CHECK_TASKS")
@@ -441,10 +473,11 @@ async def handle_report_total(callback: CallbackQuery):
             
             # Проверка на пустой отчет
             if not report:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за сегодня\n\n"
                     f"Нет данных за выбранный период."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
                 await callback.answer("Отчёт пуст")
                 return
             
@@ -470,7 +503,8 @@ async def handle_report_total(callback: CallbackQuery):
                     f"\n⏱ Общее время выполнения: {total_time_text}\n"
                     f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
-                await callback.message.answer(child_report_text)
+                sent = await callback.message.answer(child_report_text)
+                schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             await callback.answer("Отчёты отправлены")
             
@@ -480,10 +514,11 @@ async def handle_report_total(callback: CallbackQuery):
             
             # Проверка на пустой отчет
             if not report:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
                     f"Нет данных за выбранный период."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
                 await callback.answer("Отчёт пуст")
                 return
             
@@ -509,7 +544,8 @@ async def handle_report_total(callback: CallbackQuery):
                     f"\n⏱ Общее время выполнения: {total_time_text}\n"
                     f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
-                await callback.message.answer(child_report_text)
+                sent = await callback.message.answer(child_report_text)
+                schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             await callback.answer("Отчёты отправлены")
             
@@ -548,15 +584,17 @@ async def handle_report_total(callback: CallbackQuery):
                             f"\n⏱ Общее время выполнения: {total_time_text}\n"
                             f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                         )
-                        await callback.message.answer(child_report_text)
+                        sent = await callback.message.answer(child_report_text)
+                        schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             # Проверка на пустой отчет за всю неделю
             if not has_any_data:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за неделю\n"
                     f"({week_start.strftime('%d.%m.%Y')} — {week_end.strftime('%d.%m.%Y')})\n\n"
                     f"Нет данных за выбранный период."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
                 await callback.answer("Отчёт пуст")
                 return
             
@@ -643,11 +681,12 @@ async def handle_report_child_selected(callback: CallbackQuery):
             child_data = report.get(child_id)
             
             if not child_data:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за сегодня\n\n"
                     f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот день."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
             else:
                 report_text = (
                     f"📊 Отчет за сегодня\n\n"
@@ -669,7 +708,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                     f"\n⏱ Общее время выполнения: {total_time_text}\n"
                     f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
-                await callback.message.answer(report_text)
+                sent = await callback.message.answer(report_text)
+                schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             await callback.answer("Отчёт отправлен")
             
@@ -679,11 +719,12 @@ async def handle_report_child_selected(callback: CallbackQuery):
             child_data = report.get(child_id)
             
             if not child_data:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
                     f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот день."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
             else:
                 report_text = (
                     f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
@@ -705,7 +746,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                     f"\n⏱ Общее время выполнения: {total_time_text}\n"
                     f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
                 )
-                await callback.message.answer(report_text)
+                sent = await callback.message.answer(report_text)
+                schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             await callback.answer("Отчёт отправлен")
             
@@ -727,11 +769,12 @@ async def handle_report_child_selected(callback: CallbackQuery):
             tasks = result.scalars().all()
             
             if not tasks:
-                await callback.message.answer(
+                msg = await callback.message.answer(
                     f"📊 Отчет за неделю\n\n"
                     f"👦 {child.display_name}\n\n"
                     f"Нет заданий за этот период."
                 )
+                schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
             else:
                 # Группируем по дням
                 tasks_by_date = {}
@@ -798,7 +841,8 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 report_text += (
                     f"⏱ Общее время выполнения за неделю: {total_time_text}\n"
                 )
-                await callback.message.answer(report_text)
+                sent = await callback.message.answer(report_text)
+                schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
             await callback.answer("Отчёт отправлен")
 
@@ -913,6 +957,7 @@ async def handle_other_admin_callbacks(callback: CallbackQuery):
         "ADMIN_REWARD_TASK_TYPE:",
         "ADMIN_TASK_TYPE_DELETE:",
         "ADMIN_CHILD_DELETE:",
+        "ADMIN_CHILD_TASKS:",
         "ADMIN_USER_DELETE:",
         "ADMIN_USER_DELETE_CONFIRM:",
         "ADMIN_REWARD_TASK_TYPE_FIRST:",

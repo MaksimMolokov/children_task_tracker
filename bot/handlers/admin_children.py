@@ -9,7 +9,11 @@ from sqlalchemy import select, delete
 
 from bot.keyboards.admin import get_admin_children_menu
 from db.database import AsyncSessionLocal
-from db.models import User, UserRole, Task, TaskMedia, ChildTaskReward
+from db.models import User, UserRole, Task, TaskMedia, ChildTaskReward, TaskStatus
+from sqlalchemy.orm import selectinload
+from datetime import date, timedelta
+
+from bot.keyboards.admin import ADMIN_BACK_MAIN
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -61,12 +65,16 @@ async def handle_child_list(callback: CallbackQuery):
                 lines.append(
                     f"👦 {child.display_name}{age_text} — {status}{telegram_info}"
                 )
-                # Кнопка удаления для каждого ребёнка
+                # Кнопки «Задания» и «Удалить» для каждого ребёнка
                 buttons.append([
                     InlineKeyboardButton(
-                        text=f"🗑 Удалить {child.display_name}",
+                        text=f"📋 Задания",
+                        callback_data=f"ADMIN_CHILD_TASKS:{child.id}",
+                    ),
+                    InlineKeyboardButton(
+                        text=f"🗑 Удалить",
                         callback_data=f"ADMIN_CHILD_DELETE:{child.id}",
-                    )
+                    ),
                 ])
 
             text = "\n".join(lines)
@@ -87,6 +95,54 @@ async def handle_child_list(callback: CallbackQuery):
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_CHILD_TASKS:"))
+async def handle_child_tasks(callback: CallbackQuery):
+    """Просмотр назначенных заданий для выбранного ребёнка."""
+    child_id = int(callback.data.split(":")[1])
+    await callback.answer()
+    async with AsyncSessionLocal() as session:
+        child = await session.get(User, child_id)
+        if not child or child.role != UserRole.CHILD:
+            await callback.message.edit_text(
+                "Ребёнок не найден.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ К списку детей", callback_data="ADMIN_CHILD_LIST")],
+                    [InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)],
+                ]),
+            )
+            return
+        # Задания на сегодня и за последние 7 дней
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+        result = await session.execute(
+            select(Task)
+            .options(selectinload(Task.task_type))
+            .where(Task.child_id == child_id, Task.scheduled_date >= week_ago)
+            .order_by(Task.scheduled_date.desc())
+        )
+        tasks = result.scalars().all()
+    child_name = child.display_name or f"Ребёнок {child_id}"
+    status_emoji = {
+        TaskStatus.DONE: "✅",
+        TaskStatus.FAILED: "❌",
+        TaskStatus.EXPIRED: "⏰",
+        TaskStatus.PENDING: "⏳",
+    }
+    if not tasks:
+        text = f"📋 Задания — {child_name}\n\nНет назначенных заданий за последние 7 дней."
+    else:
+        lines = [f"📋 Задания — {child_name}\n"]
+        for task in tasks:
+            emoji = status_emoji.get(task.status, "❓")
+            lines.append(f"• {task.scheduled_date} — {task.task_type.name} — {emoji}")
+        text = "\n".join(lines)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ К списку детей", callback_data="ADMIN_CHILD_LIST")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data=ADMIN_BACK_MAIN)],
+    ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 

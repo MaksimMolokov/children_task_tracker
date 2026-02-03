@@ -35,5 +35,10 @@ REPORT_CHANNEL_ID: Optional[int] = (
     int(os.getenv("REPORT_CHANNEL_ID")) if os.getenv("REPORT_CHANNEL_ID") else None
 )
 
+# Log file path (for file handler and admin "Logs" feature)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_DIR: str = os.path.join(_PROJECT_ROOT, "logs")
+LOG_FILE: str = os.path.join(LOG_DIR, "bot.log")
+
 
 

@@ -4,6 +4,8 @@
 """
 import asyncio
 import logging
+import os
+from logging.handlers import TimedRotatingFileHandler
 from contextlib import asynccontextmanager
 
 from aiogram import Bot, Dispatcher
@@ -16,12 +18,21 @@ from db.database import AsyncSessionLocal, close_db, init_db
 from db.models import User, UserRole
 from scheduler.jobs import set_bot_instance, setup_scheduler
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Настройка логирования: консоль + файл с ротацией
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
+
+# Файл логов (директория logs в корне проекта)
+from bot.config import LOG_DIR, LOG_FILE
+if not os.path.isdir(LOG_DIR):
+    os.makedirs(LOG_DIR, exist_ok=True)
+file_handler = TimedRotatingFileHandler(
+    LOG_FILE, when="midnight", interval=1, backupCount=7, encoding="utf-8"
+)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+logging.getLogger().addHandler(file_handler)
 
 
 @asynccontextmanager

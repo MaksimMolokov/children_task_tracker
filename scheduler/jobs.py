@@ -57,6 +57,14 @@ async def create_daily_tasks():
                 session, current_time, current_date
             )
 
+            # Явное логирование каждого запуска (в т.ч. когда 0 расписаний)
+            logger.info(
+                "create_daily_tasks run: now=%s, current_time=%s, current_date=%s, schedules_count=%s",
+                now.isoformat(),
+                current_time.isoformat(),
+                current_date.isoformat(),
+                len(schedules),
+            )
             if not schedules:
                 return
 
