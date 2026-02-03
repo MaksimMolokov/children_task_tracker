@@ -7,9 +7,9 @@ import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from aiogram import Router
+from aiogram import F, Router
 from sqlalchemy.orm import selectinload
-from aiogram.filters import Command, F
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
