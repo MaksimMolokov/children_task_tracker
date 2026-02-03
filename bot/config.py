@@ -39,6 +39,7 @@ REPORT_CHANNEL_ID: Optional[int] = (
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR: str = os.path.join(_PROJECT_ROOT, "logs")
 LOG_FILE: str = os.path.join(LOG_DIR, "bot.log")
+EVENT_LOG_FILE: str = os.path.join(LOG_DIR, "events.log")
 
 
 

@@ -13,6 +13,7 @@ from pytz import timezone
 
 from bot.config import ADMIN_TELEGRAM_ID, TIMEZONE
 from bot.keyboards.inline import get_task_completion_keyboard
+from bot.utils.event_log import log_event
 from bot.services.report_service import ReportService
 from bot.services.schedule_service import ScheduleService
 from bot.services.task_service import TaskService
@@ -68,6 +69,7 @@ async def create_daily_tasks():
             if not schedules:
                 return
 
+            log_event(f"Запуск проверки расписания: найдено {len(schedules)} расписаний")
             logger.info(f"Найдено {len(schedules)} активных расписаний на {current_time}")
 
             for schedule in schedules:
@@ -114,6 +116,7 @@ async def create_daily_tasks():
                             )
                         except Exception as send_error:
                             error_msg = str(send_error).lower()
+                            log_event(f"Ошибка отправки задания ребёнку {child.display_name}")
                             if "can't initiate conversation" in error_msg or "forbidden" in error_msg:
                                 logger.error(
                                     f"Не удалось отправить задание для {child.display_name}: "
@@ -130,6 +133,7 @@ async def create_daily_tasks():
                         task.message_id = sent_message.message_id
                         await session.commit()
 
+                        log_event(f"Задание отправлено ребёнку {child.display_name}")
                         logger.info(
                             f"Создана задача {task.id} для ребёнка {child.display_name}"
                         )

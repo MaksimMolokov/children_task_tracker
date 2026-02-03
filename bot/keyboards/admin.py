@@ -2,7 +2,7 @@
 Inline-клавиатуры для админ-меню.
 См. SPEC.md раздел 7 "Админ-меню и кнопки бота"
 """
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 # Префиксы callback для админ-меню
 ADMIN_CHECK_TASKS = "ADMIN_CHECK_TASKS"
@@ -16,6 +16,35 @@ ADMIN_TESTING = "ADMIN_TESTING"
 ADMIN_ACCESS = "ADMIN_ACCESS"
 ADMIN_LOGS = "ADMIN_LOGS"
 ADMIN_BACK_MAIN = "ADMIN_BACK_MAIN"
+
+# Тексты кнопок нижней клавиатуры (ReplyKeyboard) — должны совпадать с обработчиками
+REPLY_CHECK_TASKS = "📋 Проверка заданий"
+REPLY_ASSIGN_TASK = "➕ Назначить задание"
+REPLY_CHILDREN = "👦 Дети"
+REPLY_REWARDS = "🗂 Карточки заданий"
+REPLY_REPORTS = "📊 Отчёты"
+REPLY_ACCESS = "🔐 Доступы"
+REPLY_LEADERS = "🏆 Лидеры"
+REPLY_TESTING = "🧪 Тестирование"
+REPLY_LOGS = "📜 Логи"
+
+
+def get_admin_reply_keyboard() -> ReplyKeyboardMarkup:
+    """
+    Постоянная клавиатура внизу чата для админа (кнопки всегда видны).
+    """
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=REPLY_CHECK_TASKS), KeyboardButton(text=REPLY_ASSIGN_TASK)],
+            [KeyboardButton(text=REPLY_CHILDREN)],
+            [KeyboardButton(text=REPLY_REWARDS), KeyboardButton(text=REPLY_REPORTS)],
+            [KeyboardButton(text=REPLY_ACCESS)],
+            [KeyboardButton(text=REPLY_LEADERS), KeyboardButton(text=REPLY_TESTING)],
+            [KeyboardButton(text=REPLY_LOGS)],
+        ],
+        resize_keyboard=True,
+    )
+    return keyboard
 
 
 def get_admin_main_menu() -> InlineKeyboardMarkup:

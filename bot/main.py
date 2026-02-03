@@ -13,6 +13,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from bot.config import ADMIN_TELEGRAM_ID, BOT_TOKEN, TIMEZONE
+from bot.utils.event_log import log_event
 from bot.handlers import admin, admin_menu, children, common
 from db.database import AsyncSessionLocal, close_db, init_db
 from db.models import User, UserRole
@@ -113,7 +114,11 @@ async def main():
     # Инициализация БД и планировщика
     async with lifespan(None):
         logger.info("Бот запущен и готов к работе")
-        # Запуск polling
+        log_event("Бот запущен")
+        try:
+            await bot.send_message(chat_id=ADMIN_TELEGRAM_ID, text="Бот запущен")
+        except Exception as e:
+            logger.warning("Не удалось отправить уведомление админу о запуске: %s", e)
         await dp.start_polling(bot)
 
 

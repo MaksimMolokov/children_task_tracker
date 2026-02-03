@@ -43,16 +43,14 @@ async def cmd_start(message: Message):
         if user:
             # Пользователь найден в БД
             if user.role == UserRole.ADMIN:
-                # Администратор
-                from bot.keyboards.admin import get_admin_main_menu
+                # Администратор: показываем постоянную клавиатуру внизу
+                from bot.keyboards.admin import get_admin_reply_keyboard
                 from bot.handlers.admin_menu import format_admin_guide
 
                 await message.answer(
                     "Добро пожаловать, администратор!\n\n"
-                    "⚠️ Важно: для работы бота его нужно добавить в чат, где будут происходить выдача заданий, "
-                    "и сделать администратором этого чата.\n\n"
-                    "Используйте /admin для входа в админ-панель.",
-                    reply_markup=get_admin_main_menu(),
+                    "Используйте кнопки ниже для управления ботом.",
+                    reply_markup=get_admin_reply_keyboard(),
                 )
                 guide_text = format_admin_guide()
                 guide_msg = await message.answer(guide_text)

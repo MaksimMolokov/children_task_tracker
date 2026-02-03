@@ -9,11 +9,11 @@ from decimal import Decimal
 
 from aiogram import Router
 from sqlalchemy.orm import selectinload
-from aiogram.filters import Command
+from aiogram.filters import Command, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.config import ADMIN_TELEGRAM_ID, LOG_FILE
+from bot.config import ADMIN_TELEGRAM_ID, EVENT_LOG_FILE
 
 # Названия дней недели на русском
 WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
@@ -36,8 +36,18 @@ from bot.keyboards.admin import (
     get_admin_reports_menu,
     get_admin_rewards_menu,
     get_back_button_menu,
+    get_admin_reply_keyboard,
     ADMIN_BACK_MAIN,
     ADMIN_LOGS,
+    REPLY_CHECK_TASKS,
+    REPLY_ASSIGN_TASK,
+    REPLY_CHILDREN,
+    REPLY_REWARDS,
+    REPLY_REPORTS,
+    REPLY_ACCESS,
+    REPLY_LEADERS,
+    REPLY_TESTING,
+    REPLY_LOGS,
 )
 from bot.middleware.auth import AdminMiddleware
 from bot.utils.auto_delete import schedule_message_delete
@@ -100,46 +110,168 @@ def format_admin_guide() -> str:
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     """
-    Команда /admin - вход в админ-меню.
-    См. SPEC.md раздел 7.1
+    Команда /admin - вход в админ-меню. Показываем постоянную клавиатуру внизу.
     """
     await message.answer(
-        "🔧 Админ-панель\n\n"
-        "Выберите действие:",
-        reply_markup=get_admin_main_menu(),
+        "🔧 Админ-панель\n\nВыберите действие (кнопки ниже):",
+        reply_markup=get_admin_reply_keyboard(),
     )
 
 
-@router.callback_query(lambda c: c.data == ADMIN_BACK_MAIN)
-async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
-    """Возврат в главное меню"""
-    await callback.answer()
-    await state.clear()
-    await callback.message.edit_text(
-        "🔧 Админ-панель\n\n" "Выберите действие:",
-        reply_markup=get_admin_main_menu(),
+# Обработчики нажатий нижней клавиатуры (ReplyKeyboard) — показываем подменю inline
+@router.message(F.text == REPLY_CHECK_TASKS)
+async def msg_check_tasks(message: Message):
+    """Кнопка «Проверка заданий» — показываем подменю."""
+    await message.answer(
+        "📋 Проверка заданий\n\nВыберите действие:",
+        reply_markup=get_admin_check_tasks_menu(),
     )
 
 
-@router.callback_query(lambda c: c.data == ADMIN_LOGS)
-async def handle_admin_logs(callback: CallbackQuery):
-    """Отправка последних строк логов админу."""
-    await callback.answer()
+@router.message(F.text == REPLY_ASSIGN_TASK)
+async def msg_assign_task(message: Message):
+    """Кнопка «Назначить задание» — сообщение с одной inline-кнопкой для выбора карточки."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Выбрать карточку задания", callback_data="ADMIN_ASSIGN_TASK_LIST")],
+    ])
+    await message.answer("➕ Назначить задание\n\nВыберите карточку задания:", reply_markup=keyboard)
+
+
+@router.message(F.text == REPLY_CHILDREN)
+async def msg_children(message: Message):
+    """Кнопка «Дети»."""
+    await message.answer(
+        "👦 Дети\n\n"
+        "Просмотр списка детей.\n\n"
+        "💡 Для добавления детей используйте раздел:\n"
+        "🔐 Доступы → ➕ Добавить пользователя → выберите роль 'Пользователь'",
+        reply_markup=get_admin_children_menu(),
+    )
+
+
+@router.message(F.text == REPLY_REWARDS)
+async def msg_rewards(message: Message):
+    """Кнопка «Карточки заданий»."""
+    await message.answer(
+        "🗂 Карточки заданий\n\nВыберите действие:",
+        reply_markup=get_admin_rewards_menu(),
+    )
+
+
+@router.message(F.text == REPLY_REPORTS)
+async def msg_reports(message: Message):
+    """Кнопка «Отчёты»."""
+    await message.answer(
+        "📊 Отчёты\n\nВыберите период:",
+        reply_markup=get_admin_reports_menu(),
+    )
+
+
+@router.message(F.text == REPLY_ACCESS)
+async def msg_access(message: Message):
+    """Кнопка «Доступы»."""
+    from bot.keyboards.admin import get_admin_access_menu
+    await message.answer(
+        "🔐 Доступы\n\nВыберите действие:",
+        reply_markup=get_admin_access_menu(),
+    )
+
+
+@router.message(F.text == REPLY_LEADERS)
+async def msg_leaders(message: Message):
+    """Кнопка «Лидеры»."""
+    await message.answer(
+        "🏆 Лидеры\n\nВыберите период:",
+        reply_markup=get_admin_leaders_menu(),
+    )
+
+
+@router.message(F.text == REPLY_TESTING)
+async def msg_testing(message: Message):
+    """Кнопка «Тестирование» — сообщение с кнопкой, по нажатию показывается список детей."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Выбрать ребёнка для теста", callback_data="ADMIN_TESTING")],
+    ])
+    await message.answer(
+        "🧪 Тестирование\n\nВыберите ребёнка для тестового уведомления:",
+        reply_markup=keyboard,
+    )
+
+
+@router.message(F.text == REPLY_LOGS)
+async def msg_logs(message: Message):
+    """Кнопка «Логи» — отправляем последние записи журнала событий (две колонки)."""
     max_lines = 200
     max_chunk = 4000
     try:
-        if not os.path.exists(LOG_FILE):
-            await callback.message.answer("📜 Логи\n\nФайл логов пока не создан.")
+        if not os.path.exists(EVENT_LOG_FILE):
+            await message.answer("📜 Логи\n\nФайл событий пока не создан.")
             return
-        with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+        with open(EVENT_LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
         last_lines = lines[-max_lines:] if len(lines) > max_lines else lines
-        text = "".join(last_lines).strip() or "Нет записей."
+        text = _format_events_two_columns(last_lines)
         if len(text) > max_chunk:
             while text:
                 chunk = text[:max_chunk]
                 text = text[max_chunk:]
-                await callback.message.answer(chunk)  # без HTML, чтобы не ломать разметку из-за символов в логах
+                await message.answer(chunk)
+        else:
+            await message.answer(text)
+    except Exception as e:
+        logger.exception("Ошибка при чтении логов")
+        await message.answer(f"Ошибка при чтении логов: {e}")
+
+
+@router.callback_query(lambda c: c.data == ADMIN_BACK_MAIN)
+async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
+    """Возврат в главное меню (убираем inline, reply-клавиатура остаётся внизу)."""
+    await callback.answer()
+    await state.clear()
+    await callback.message.edit_text(
+        "🔧 Админ-панель\n\nВыберите действие (кнопки ниже):",
+        reply_markup=None,
+    )
+
+
+DATE_COLUMN_WIDTH = 19
+
+
+def _format_events_two_columns(lines: list[str]) -> str:
+    """Форматирует строки событий (дата\\tописание) в две колонки."""
+    rows = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t", 1)
+        date_part = (parts[0] if parts else "").ljust(DATE_COLUMN_WIDTH)
+        desc = parts[1] if len(parts) > 1 else ""
+        rows.append(f"{date_part} | {desc}")
+    return "\n".join(rows) if rows else "Нет записей."
+
+
+@router.callback_query(lambda c: c.data == ADMIN_LOGS)
+async def handle_admin_logs(callback: CallbackQuery):
+    """Отправка последних записей журнала событий админу (две колонки: дата | описание)."""
+    await callback.answer()
+    max_lines = 200
+    max_chunk = 4000
+    try:
+        if not os.path.exists(EVENT_LOG_FILE):
+            await callback.message.answer("📜 Логи\n\nФайл событий пока не создан.")
+            return
+        with open(EVENT_LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        last_lines = lines[-max_lines:] if len(lines) > max_lines else lines
+        text = _format_events_two_columns(last_lines)
+        if len(text) > max_chunk:
+            while text:
+                chunk = text[:max_chunk]
+                text = text[max_chunk:]
+                await callback.message.answer(chunk)
         else:
             await callback.message.answer(text)
     except Exception as e:

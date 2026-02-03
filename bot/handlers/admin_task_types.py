@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery
 
 from bot.keyboards.admin import get_admin_rewards_menu, get_back_button_menu
 from bot.middleware.auth import AdminMiddleware
+from bot.utils.event_log import log_event
 from db.database import AsyncSessionLocal
 from db.models import Schedule, SchedulePeriodicity, TaskType, User, UserRole, ChildTaskReward
 from sqlalchemy import select
@@ -577,6 +578,7 @@ async def handle_assign_task_do(callback: CallbackQuery):
             task.chat_id = chat_id
             await session.commit()
             await session.refresh(task)
+            log_event(f'Задание "{task_type.name}" назначено ребёнку {child.display_name}')
             logger.info(f"Task assigned: task_id={task.id}, message_id={sent_message.message_id}, chat_id={chat_id}")
             await callback.answer("✅ Задание отправлено!", show_alert=True)
             await callback.message.edit_text(

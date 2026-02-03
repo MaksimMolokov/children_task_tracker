@@ -14,6 +14,7 @@ from bot.keyboards.callbacks import TASK_COMPLETE
 from bot.keyboards.inline import get_task_completion_keyboard
 from bot.config import ADMIN_TELEGRAM_ID
 from bot.utils.auto_delete import schedule_message_delete
+from bot.utils.event_log import log_event
 from db.database import AsyncSessionLocal
 from db.models import MediaFileType, Task, TaskStatus, User
 
@@ -93,6 +94,7 @@ async def handle_task_complete_callback(callback: CallbackQuery):
                     task.status = TaskStatus.DONE
                     task.completed_at = datetime.utcnow()
                     await session.commit()
+                    log_event(f'Ребёнок {task.child.display_name} выполнил задание "{task.task_type.name}"')
                     logger.info(
                         "task_completed: task_id=%s, child=%s, task_type=%s",
                         task.id, task.child.display_name, task.task_type.name,
@@ -122,6 +124,7 @@ async def handle_task_complete_callback(callback: CallbackQuery):
                 task.status = TaskStatus.DONE
                 task.completed_at = datetime.utcnow()
                 await session.commit()
+                log_event(f'Ребёнок {task.child.display_name} выполнил задание "{task.task_type.name}"')
                 logger.info(
                     "task_completed: task_id=%s, child=%s, task_type=%s",
                     task.id, task.child.display_name, task.task_type.name,
@@ -269,6 +272,7 @@ async def handle_media(message: Message):
             task.completed_at = datetime.utcnow()
             
             await session.commit()
+            log_event(f'Ребёнок {task.child.display_name} выполнил задание "{task.task_type.name}"')
             logger.info(
                 "task_completed: task_id=%s, child=%s, task_type=%s (with media)",
                 task.id, task.child.display_name, task.task_type.name,
