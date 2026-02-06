@@ -13,21 +13,9 @@ from sqlalchemy.orm import joinedload
 
 from db.models import Task, TaskMedia, TaskStatus, User, UserRole
 
+from bot.utils.formatting import get_week_days_string
+
 logger = logging.getLogger(__name__)
-
-# Названия дней недели на русском
-WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-
-
-def get_week_days_string(week_start: date, week_end: date) -> str:
-    """Получить строку с днями недели для периода"""
-    days = []
-    current = week_start
-    while current <= week_end:
-        weekday_name = WEEKDAYS_RU[current.weekday()]
-        days.append(weekday_name)
-        current += timedelta(days=1)
-    return ", ".join(days)
 
 
 class ReportService:
@@ -89,6 +77,41 @@ class ReportService:
                 report[child_id]["total_time"] += execution_time
 
         return report
+
+    @staticmethod
+    def format_daily_report_block_one_child(child_data: Dict) -> str:
+        """
+        Форматирование одного блока отчёта по одному ребёнку (для отправки отдельным сообщением).
+        child_data — элемент из generate_daily_report: child_name, tasks, total, total_time.
+        """
+        lines = [
+            f"👦 {child_data['child_name']}",
+            f"💰 Сумма выплаты: {child_data['total']} ARS",
+            "",
+        ]
+        for task_info in child_data["tasks"]:
+            status_emoji = "✅" if task_info["status"] == "done" else "❌"
+            media_icon = "📸" if task_info["has_media"] else ""
+            time_text = (
+                f" ({task_info['execution_time']} мин)"
+                if task_info["execution_time"] > 0 and task_info["status"] == "done"
+                else ""
+            )
+            lines.append(
+                f"– {task_info['task_type_name']} — {status_emoji} "
+                f"{task_info['reward_amount']} ARS{time_text} {media_icon}"
+            )
+        total_time_text = (
+            f"{child_data['total_time']} минут"
+            if child_data["total_time"] > 0
+            else "0 минут"
+        )
+        lines.extend([
+            "",
+            f"⏱ Общее время выполнения: {total_time_text}",
+            f"💰 Сумма за выполненные задания: {child_data['total']} ARS",
+        ])
+        return "\n".join(lines)
 
     @staticmethod
     async def format_daily_report_text(

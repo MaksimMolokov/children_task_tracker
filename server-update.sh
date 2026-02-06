@@ -1,80 +1,95 @@
 #!/bin/bash
-# =============================================================================
-# Единый скрипт обновления проекта на сервере
-# Репозиторий: https://github.com/MaksimMolokov/children_task_tracker
-# =============================================================================
 #
+# Единый скрипт обновления бота Children Task Tracker на сервере.
 # Использование:
+#   ./server-update.sh              — обновить бота (запускать из каталога проекта или из домашнего)
+#   ./server-update.sh --deploy      — первый деплой: клонировать в ~/children_task_tracker и запустить
 #
-#   Вариант 1 — на сервере (после SSH):
-#     cd ~/children_task_tracker
-#     ./server-update.sh
-#
-#   Вариант 2 — с локальной машины (скрипт сам зайдёт по SSH):
-#     SERVER=root@ВАШ_СЕРВЕР ./server-update.sh
-#
-#   Вариант 3 — другая директория на сервере:
-#     PROJECT_DIR=/opt/children_task_tracker ./server-update.sh
-#
-# После обновления: если вы удалили себя из админов, в .env на сервере
-# должен быть ADMIN_TELEGRAM_ID=ваш_telegram_id — бот вернёт вас в админы при старте.
-# =============================================================================
-
 set -e
 
-PROJECT_DIR="${PROJECT_DIR:-$HOME/children_task_tracker}"
-SERVER="${SERVER:-}"
+REPO_URL="https://github.com/MaksimMolokov/children_task_tracker.git"
+DEFAULT_PROJECT_DIR="$HOME/children_task_tracker"
 
-if command -v docker-compose &>/dev/null; then
-    DOCKER_COMPOSE="docker-compose"
+# Определяем каталог проекта
+if [ -n "$PROJECT_DIR" ]; then
+    PROJECT_DIR="$PROJECT_DIR"
+elif [ -f "docker-compose.yml" ] && [ -d ".git" ]; then
+    PROJECT_DIR="$(pwd)"
 else
-    DOCKER_COMPOSE="docker compose"
+    PROJECT_DIR="$DEFAULT_PROJECT_DIR"
 fi
 
-do_update() {
-    cd "$PROJECT_DIR" || { echo "Ошибка: директория $PROJECT_DIR не найдена."; exit 1; }
-    echo "=== Обновление проекта children_task_tracker ==="
-    echo "Директория: $PWD"
-    echo ""
+DO_DEPLOY=false
+[ "$1" = "--deploy" ] && DO_DEPLOY=true
 
-    echo "[1/5] Обновляю код из GitHub..."
-    git fetch origin
-    if [ -f server-update.sh ] && ! git ls-files --error-unmatch server-update.sh &>/dev/null; then
-        rm -f server-update.sh
+echo "=== Children Task Tracker — обновление на сервере ==="
+echo "Каталог проекта: $PROJECT_DIR"
+echo ""
+
+# Первый деплой: клонирование
+if [ "$DO_DEPLOY" = true ]; then
+    if [ -d "$PROJECT_DIR" ]; then
+        echo "Каталог $PROJECT_DIR уже существует. Выполняю обычное обновление."
+    else
+        echo "Клонирую репозиторий в $PROJECT_DIR ..."
+        git clone "$REPO_URL" "$PROJECT_DIR"
+        cd "$PROJECT_DIR"
+        if [ ! -f .env ]; then
+            cp .env.example .env
+            echo ""
+            echo "Создан .env из .env.example. Обязательно отредактируйте:"
+            echo "  nano $PROJECT_DIR/.env"
+            echo "Укажите BOT_TOKEN и ADMIN_TELEGRAM_ID, затем снова запустите:"
+            echo "  $0"
+            echo ""
+            exit 0
+        fi
     fi
-    git pull origin main || git pull origin master || true
-    echo ""
-
-    echo "[2/5] Останавливаю контейнеры..."
-    $DOCKER_COMPOSE down 2>/dev/null || true
-    echo ""
-
-    echo "[3/5] Сборка и запуск контейнеров..."
-    $DOCKER_COMPOSE up -d --build
-    echo ""
-
-    echo "[4/5] Ожидание запуска PostgreSQL (5 сек)..."
-    sleep 5
-    echo "Применяю миграции БД..."
-    $DOCKER_COMPOSE exec -T bot python -m alembic upgrade head 2>/dev/null || echo "(миграции уже применены или контейнер ещё не готов)"
-    echo ""
-
-    echo "[5/5] Статус контейнеров:"
-    $DOCKER_COMPOSE ps
-    echo ""
-    echo "=== Готово ==="
-    echo ""
-    echo "Полезные команды:"
-    echo "  Логи бота:    $DOCKER_COMPOSE logs -f bot"
-    echo "  Логи всех:    $DOCKER_COMPOSE logs -f"
-    echo "  Остановить:   $DOCKER_COMPOSE down"
-    echo ""
-}
-
-if [ -n "$SERVER" ]; then
-    echo "Подключение к серверу $SERVER..."
-    ssh "$SERVER" "PROJECT_DIR=\${PROJECT_DIR:-\$HOME/children_task_tracker} bash -s" < "$0"
-else
-    do_update
 fi
-exit 0
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo "Ошибка: каталог $PROJECT_DIR не найден."
+    echo "Для первого деплоя запустите: $0 --deploy"
+    exit 1
+fi
+
+cd "$PROJECT_DIR"
+
+if [ ! -d ".git" ]; then
+    echo "Ошибка: в $PROJECT_DIR нет репозитория Git. Для деплоя с нуля: $0 --deploy"
+    exit 1
+fi
+
+# Обновление кода
+echo "Обновляю код из репозитория..."
+git fetch origin
+if git show-ref -q refs/heads/main; then
+    git checkout main
+    git pull origin main
+else
+    git checkout master 2>/dev/null || true
+    git pull origin master 2>/dev/null || git pull origin main
+fi
+
+# .env для обычного обновления (если вдруг отсутствует)
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "Создан .env. Отредактируйте его (BOT_TOKEN, ADMIN_TELEGRAM_ID) и при необходимости запустите скрипт снова."
+fi
+
+# Только пересборка образов и перезапуск (ничего не удаляем, данные и тома сохраняются)
+echo "Пересобираю образы и перезапускаю контейнеры (rebuild)..."
+docker-compose up -d --build
+
+# Миграции
+echo "Применяю миграции БД..."
+sleep 5
+docker-compose exec -T bot python -m alembic upgrade head || echo "Миграции уже применены или ошибка (проверьте логи)."
+
+echo ""
+echo "=== Готово ==="
+echo "Статус контейнеров:"
+docker-compose ps
+echo ""
+echo "Логи бота:  docker-compose logs -f bot"
+echo "Логи всех:  docker-compose logs -f"

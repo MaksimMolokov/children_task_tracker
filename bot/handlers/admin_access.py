@@ -7,24 +7,20 @@ from aiogram import Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from bot.config import ADMIN_TELEGRAM_ID
 from bot.handlers.fsm_states import AddUserStates
 from bot.keyboards.admin import ADMIN_BACK_MAIN, get_back_button_menu
 from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
-from db.models import User, UserRole, Task, TaskMedia, ChildTaskReward
+from db.models import User, UserRole
 
 router = Router()
 logger = logging.getLogger(__name__)
 
-# Применяем middleware для проверки прав админа
-from bot.middleware.auth import AdminMiddleware
 from bot.middleware.auto_delete import AutoDeleteMiddleware
 
-router.message.middleware(AdminMiddleware())
-router.callback_query.middleware(AdminMiddleware())
 router.message.middleware(AutoDeleteMiddleware())
 
 
@@ -475,7 +471,7 @@ async def handle_user_cancel(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda c: c.data.startswith("ADMIN_USER_DELETE_CONFIRM:"))
 async def handle_user_delete_confirm(callback: CallbackQuery):
-    """Фактическое удаление пользователя после подтверждения (с проверками)"""
+    """Мягкое удаление пользователя после подтверждения (is_active=False), данные сохраняются в истории"""
     user_id = int(callback.data.split(":")[1])
 
     async with AsyncSessionLocal() as session:
@@ -504,35 +500,12 @@ async def handle_user_delete_confirm(callback: CallbackQuery):
             await handle_access_list(callback)
             return
 
-        is_child = user.role == UserRole.CHILD
-
-        if is_child:
-            tasks_result = await session.execute(
-                select(Task).where(Task.child_id == user_id)
-            )
-            tasks = tasks_result.scalars().all()
-            task_ids = [task.id for task in tasks]
-            if task_ids:
-                await session.execute(
-                    delete(TaskMedia).where(TaskMedia.task_id.in_(task_ids))
-                )
-                logger.info(f"Deleted {len(task_ids)} TaskMedia records for user {user_id}")
-            if tasks:
-                await session.execute(
-                    delete(Task).where(Task.child_id == user_id)
-                )
-                logger.info(f"Deleted {len(tasks)} Task records for user {user_id}")
-            await session.execute(
-                delete(ChildTaskReward).where(ChildTaskReward.child_id == user_id)
-            )
-            logger.info(f"Deleted ChildTaskReward records for user {user_id}")
-
-        await session.delete(user)
+        user.is_active = False
         await session.commit()
-        logger.info(f"Completely deleted user {user_id} ({user_name}) and all related data")
+        logger.info(f"User {user_id} ({user_name}) deactivated (soft delete)")
 
     await callback.answer(
-        f"Пользователь {user_name} и вся связанная информация полностью удалены",
+        f"Пользователь {user_name} деактивирован. Данные сохранены в истории.",
         show_alert=True,
     )
     await handle_access_list(callback)

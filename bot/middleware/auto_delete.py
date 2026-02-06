@@ -1,5 +1,9 @@
 """
-Middleware для автоматического удаления сообщений пользователя через 1 минуту.
+Удаление сообщений пользователя через 60 секунд после отправки.
+
+Отличие от bot.utils.auto_delete.schedule_message_delete:
+- здесь удаляются сообщения пользователя (не бота) по таймеру;
+- schedule_message_delete — отложенное удаление конкретного сообщения бота (ответы, отчёты).
 """
 import asyncio
 from typing import Any, Awaitable, Callable
@@ -9,7 +13,7 @@ from aiogram.types import Message, TelegramObject
 
 
 class AutoDeleteMiddleware(BaseMiddleware):
-    """Middleware для автоматического удаления сообщений пользователя через 1 минуту"""
+    """Удаление сообщений пользователя через 60 сек после отправки (не сообщений бота)."""
 
     async def __call__(
         self,

@@ -1,18 +1,19 @@
 """
-Общие команды бота (start, help).
+Общие команды бота (start, help, feedback).
 См. SPEC.md раздел 4.1 "Регистрация и роли"
 """
 import logging
 
-from aiogram import Router
-
-from bot.utils.auto_delete import schedule_message_delete
+from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy import select
 
+from bot.handlers.fsm_states import FeedbackStates
+from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
-from db.models import User, UserRole
+from db.models import Feedback, User, UserRole
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -103,7 +104,8 @@ async def cmd_help(message: Message):
                 help_msg = await message.answer(
                     "Доступные команды:\n"
                     "/start — приветствие\n"
-                    "/help — подсказка\n\n"
+                    "/help — подсказка\n"
+                    "/feedback — отправить отзыв или предложение\n\n"
                     "Задания приходят в чат. Нажми кнопку «✅ Выполнил» на сообщении с заданием. "
                     "Если нужно — пришли фото или видео ответом на это сообщение."
                 )
@@ -118,8 +120,43 @@ async def cmd_help(message: Message):
         else:
             help_msg = await message.answer(
                 "Доступные команды:\n"
-                "/start — регистрация\n\n"
+                "/start — регистрация\n"
+                "/feedback — отправить отзыв или предложение\n\n"
                 "Обратитесь к администратору для добавления в систему."
             )
             schedule_message_delete(message.bot, message.chat.id, help_msg.message_id)
+
+
+@router.message(Command("feedback"))
+async def cmd_feedback(message: Message, state: FSMContext):
+    """Команда /feedback — запрос текста обратной связи (доступна всем пользователям)."""
+    await state.set_state(FeedbackStates.waiting_for_text)
+    await message.answer("Напишите ваш отзыв или предложение одним сообщением.")
+
+
+@router.message(F.text, FeedbackStates.waiting_for_text)
+async def msg_feedback_text(message: Message, state: FSMContext):
+    """Приём текста обратной связи и сохранение в БД."""
+    text = message.text
+    if not text or len(text.strip()) == 0:
+        await message.answer("Пожалуйста, отправьте непустой текст.")
+        return
+    telegram_user_id = message.from_user.id if message.from_user else None
+    user_id = None
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_user_id == telegram_user_id, User.is_active == True)
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            user_id = user.id
+        fb = Feedback(
+            telegram_user_id=telegram_user_id,
+            user_id=user_id,
+            text=text.strip(),
+        )
+        session.add(fb)
+        await session.commit()
+    await state.clear()
+    await message.answer("Спасибо, ваше сообщение сохранено.")
 

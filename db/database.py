@@ -22,20 +22,6 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncSession:
-    """
-    Dependency для получения сессии БД.
-    Использовать в обработчиках как:
-        async with get_db() as session:
-            # работа с БД
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
-
 async def init_db():
     """
     Инициализация БД: создание всех таблиц.

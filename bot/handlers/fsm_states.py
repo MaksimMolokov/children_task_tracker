@@ -50,3 +50,8 @@ class AddUserStates(StatesGroup):
     waiting_for_age = State()  # Опционально, только для роли CHILD
 
 
+class FeedbackStates(StatesGroup):
+    """Состояния для приёма обратной связи (команда /feedback)"""
+    waiting_for_text = State()
+
+

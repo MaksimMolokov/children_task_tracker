@@ -5,8 +5,9 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db.models import ChildTaskReward, Task, TaskStatus, TaskType, User
 
@@ -90,6 +91,51 @@ class TaskService:
         result = await session.execute(
             select(Task).where(Task.chat_id == chat_id, Task.message_id == message_id)
         )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_pending_task_by_message(
+        session: AsyncSession, chat_id: int, message_id: int
+    ) -> Task | None:
+        """
+        Получение ожидающей задачи по chat_id и message_id (сообщение с кнопкой «Выполнил»).
+        С фильтром status == PENDING и загрузкой task_type, child.
+        """
+        query = (
+            select(Task)
+            .options(selectinload(Task.task_type), selectinload(Task.child))
+            .where(
+                Task.message_id == message_id,
+                Task.status == TaskStatus.PENDING,
+            )
+        )
+        if chat_id:
+            query = query.where(Task.chat_id == chat_id)
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_pending_task_by_reply(
+        session: AsyncSession, chat_id: int, reply_message_id: int
+    ) -> Task | None:
+        """
+        Получение ожидающей задачи по chat_id и id сообщения, на которое ответили
+        (message_id, prompt_message_id или reminder_message_id).
+        """
+        query = (
+            select(Task)
+            .options(selectinload(Task.task_type), selectinload(Task.child))
+            .where(
+                or_(
+                    Task.message_id == reply_message_id,
+                    Task.prompt_message_id == reply_message_id,
+                    Task.reminder_message_id == reply_message_id,
+                ),
+                Task.chat_id == chat_id,
+                Task.status == TaskStatus.PENDING,
+            )
+        )
+        result = await session.execute(query)
         return result.scalar_one_or_none()
 
     @staticmethod

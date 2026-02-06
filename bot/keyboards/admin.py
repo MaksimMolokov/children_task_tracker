@@ -27,6 +27,8 @@ REPLY_ACCESS = "🔐 Доступы"
 REPLY_LEADERS = "🏆 Лидеры"
 REPLY_TESTING = "🧪 Тестирование"
 REPLY_LOGS = "📜 Логи"
+REPLY_FAQ = "❓ FAQ"
+REPLY_FEEDBACK = "💬 Обратная связь"
 
 
 def get_admin_reply_keyboard() -> ReplyKeyboardMarkup:
@@ -36,11 +38,11 @@ def get_admin_reply_keyboard() -> ReplyKeyboardMarkup:
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=REPLY_CHECK_TASKS), KeyboardButton(text=REPLY_ASSIGN_TASK)],
-            [KeyboardButton(text=REPLY_CHILDREN)],
-            [KeyboardButton(text=REPLY_REWARDS), KeyboardButton(text=REPLY_REPORTS)],
-            [KeyboardButton(text=REPLY_ACCESS)],
-            [KeyboardButton(text=REPLY_LEADERS), KeyboardButton(text=REPLY_TESTING)],
-            [KeyboardButton(text=REPLY_LOGS)],
+            [KeyboardButton(text=REPLY_CHILDREN), KeyboardButton(text=REPLY_REWARDS)],
+            [KeyboardButton(text=REPLY_ACCESS), KeyboardButton(text=REPLY_REPORTS)],
+            [KeyboardButton(text=REPLY_FAQ), KeyboardButton(text=REPLY_FEEDBACK)],
+            [KeyboardButton(text=REPLY_LEADERS)],
+            [KeyboardButton(text=REPLY_TESTING), KeyboardButton(text=REPLY_LOGS)],
         ],
         resize_keyboard=True,
     )

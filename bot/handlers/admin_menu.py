@@ -14,20 +14,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import ADMIN_TELEGRAM_ID, EVENT_LOG_FILE
-
-# Названия дней недели на русском
-WEEKDAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-
-
-def get_week_days_string(week_start: date, week_end: date) -> str:
-    """Получить строку с днями недели для периода"""
-    days = []
-    current = week_start
-    while current <= week_end:
-        weekday_name = WEEKDAYS_RU[current.weekday()]
-        days.append(weekday_name)
-        current += timedelta(days=1)
-    return ", ".join(days)
+from bot.utils.formatting import get_week_days_string
 from bot.keyboards.admin import (
     get_admin_children_menu,
     get_admin_check_tasks_menu,
@@ -48,17 +35,15 @@ from bot.keyboards.admin import (
     REPLY_LEADERS,
     REPLY_TESTING,
     REPLY_LOGS,
+    REPLY_FAQ,
+    REPLY_FEEDBACK,
 )
-from bot.middleware.auth import AdminMiddleware
 from bot.utils.auto_delete import schedule_message_delete
 
 # Задержка автоудаления сообщений отчётов и одноразовых ответов (сек)
 REPORT_AUTO_DELETE_SEC = 45
 
 router = Router()
-router.callback_query.middleware(AdminMiddleware())
-router.message.middleware(AdminMiddleware())
-
 logger = logging.getLogger(__name__)
 
 
@@ -116,6 +101,56 @@ async def cmd_admin(message: Message):
         "🔧 Админ-панель\n\nВыберите действие (кнопки ниже):",
         reply_markup=get_admin_reply_keyboard(),
     )
+
+
+@router.message(F.text == REPLY_FAQ)
+async def msg_faq(message: Message):
+    """Кнопка «FAQ» — справочный блок: описание бота и все кнопки/действия главного меню."""
+    faq_text = format_admin_guide()
+    await message.answer(faq_text)
+
+
+@router.message(F.text == REPLY_FEEDBACK)
+async def msg_feedback(message: Message):
+    """Кнопка «Обратная связь» — список последних отзывов из БД и подсказка про /feedback."""
+    from db.database import AsyncSessionLocal
+    from db.models import Feedback, User
+    from sqlalchemy import select
+
+    limit = 20
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Feedback).order_by(Feedback.created_at.desc()).limit(limit)
+        )
+        items = result.scalars().all()
+
+        if not items:
+            text = (
+                "💬 Обратная связь\n\n"
+                "Пока нет отзывов от пользователей.\n\n"
+                "Пользователи могут отправить обратную связь командой /feedback."
+            )
+        else:
+            lines = ["💬 Последние отзывы\n"]
+            for fb in items:
+                name = "Гость"
+                if fb.user_id:
+                    u = await session.get(User, fb.user_id)
+                    if u and u.display_name:
+                        name = u.display_name
+                telegram_id_str = str(fb.telegram_user_id) if fb.telegram_user_id is not None else "не указан"
+                date_str = fb.created_at.strftime("%d.%m.%Y %H:%M") if fb.created_at else ""
+                preview = (fb.text[:80] + "…") if len(fb.text) > 80 else fb.text
+                lines.append(
+                    f"📅 {date_str}\n"
+                    f"👤 Имя: {name}\n"
+                    f"🆔 Telegram ID: {telegram_id_str}\n"
+                    f"💬 Текст: {preview}\n"
+                )
+            text = "\n".join(lines)
+            text += "\nПользователи отправляют обратную связь командой /feedback."
+
+    await message.answer(text)
 
 
 # Обработчики нажатий нижней клавиатуры (ReplyKeyboard) — показываем подменю inline
@@ -613,33 +648,15 @@ async def handle_report_total(callback: CallbackQuery):
                 await callback.answer("Отчёт пуст")
                 return
             
-            # Отправляем отчет по каждому ребенку отдельным сообщением
             for child_id, child_data in report.items():
                 child_report_text = (
-                    f"📊 Отчет за сегодня\n\n"
-                    f"👦 {child_data['child_name']}\n"
-                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
-                )
-                
-                for task_info in child_data["tasks"]:
-                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
-                    media_icon = "📸" if task_info["has_media"] else ""
-                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
-                    child_report_text += (
-                        f"– {task_info['task_type_name']} — {status_emoji} "
-                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
-                    )
-                
-                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
-                child_report_text += (
-                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
-                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
+                    "📊 Отчет за сегодня\n\n"
+                    + ReportService.format_daily_report_block_one_child(child_data)
                 )
                 sent = await callback.message.answer(child_report_text)
                 schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
-            
             await callback.answer("Отчёты отправлены")
-            
+
         elif period == "yesterday":
             report_date = date.today() - timedelta(days=1)
             report = await ReportService.generate_daily_report(session, report_date)
@@ -654,33 +671,13 @@ async def handle_report_total(callback: CallbackQuery):
                 await callback.answer("Отчёт пуст")
                 return
             
-            # Отправляем отчет по каждому ребенку отдельным сообщением
             for child_id, child_data in report.items():
-                child_report_text = (
-                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
-                    f"👦 {child_data['child_name']}\n"
-                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
-                )
-                
-                for task_info in child_data["tasks"]:
-                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
-                    media_icon = "📸" if task_info["has_media"] else ""
-                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
-                    child_report_text += (
-                        f"– {task_info['task_type_name']} — {status_emoji} "
-                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
-                    )
-                
-                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
-                child_report_text += (
-                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
-                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
-                )
+                header = f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
+                child_report_text = header + ReportService.format_daily_report_block_one_child(child_data)
                 sent = await callback.message.answer(child_report_text)
                 schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
-            
             await callback.answer("Отчёты отправлены")
-            
+
         elif period == "week":
             # За неделю - разбивка по дням, по каждому ребенку отдельное сообщение для каждого дня
             week_start = date.today() - timedelta(days=6)  # Последние 7 дней
@@ -693,29 +690,11 @@ async def handle_report_total(callback: CallbackQuery):
                 current_date = week_start + timedelta(days=day_offset)
                 report = await ReportService.generate_daily_report(session, current_date)
                 
-                if report:  # Если есть данные за этот день
+                if report:
                     has_any_data = True
                     for child_id, child_data in report.items():
-                        child_report_text = (
-                            f"📊 Отчет за {current_date.strftime('%d.%m.%Y')}\n\n"
-                            f"👦 {child_data['child_name']}\n"
-                            f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
-                        )
-                        
-                        for task_info in child_data["tasks"]:
-                            status_emoji = "✅" if task_info["status"] == "done" else "❌"
-                            media_icon = "📸" if task_info["has_media"] else ""
-                            time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
-                            child_report_text += (
-                                f"– {task_info['task_type_name']} — {status_emoji} "
-                                f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
-                            )
-                        
-                        total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
-                        child_report_text += (
-                            f"\n⏱ Общее время выполнения: {total_time_text}\n"
-                            f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
-                        )
+                        header = f"📊 Отчет за {current_date.strftime('%d.%m.%Y')}\n\n"
+                        child_report_text = header + ReportService.format_daily_report_block_one_child(child_data)
                         sent = await callback.message.answer(child_report_text)
                         schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
             
@@ -821,30 +800,13 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
             else:
                 report_text = (
-                    f"📊 Отчет за сегодня\n\n"
-                    f"👦 {child_data['child_name']}\n"
-                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
-                )
-                
-                for task_info in child_data["tasks"]:
-                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
-                    media_icon = "📸" if task_info["has_media"] else ""
-                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
-                    report_text += (
-                        f"– {task_info['task_type_name']} — {status_emoji} "
-                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
-                    )
-                
-                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
-                report_text += (
-                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
-                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
+                    "📊 Отчет за сегодня\n\n"
+                    + ReportService.format_daily_report_block_one_child(child_data)
                 )
                 sent = await callback.message.answer(report_text)
                 schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
-            
             await callback.answer("Отчёт отправлен")
-            
+
         elif period == "yesterday":
             report_date = date.today() - timedelta(days=1)
             report = await ReportService.generate_daily_report(session, report_date)
@@ -858,31 +820,12 @@ async def handle_report_child_selected(callback: CallbackQuery):
                 )
                 schedule_message_delete(callback.bot, callback.message.chat.id, msg.message_id, REPORT_AUTO_DELETE_SEC)
             else:
-                report_text = (
-                    f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
-                    f"👦 {child_data['child_name']}\n"
-                    f"💰 Сумма выплаты: {child_data['total']} ARS\n\n"
-                )
-                
-                for task_info in child_data["tasks"]:
-                    status_emoji = "✅" if task_info["status"] == "done" else "❌"
-                    media_icon = "📸" if task_info["has_media"] else ""
-                    time_text = f" ({task_info['execution_time']} мин)" if task_info["execution_time"] > 0 and task_info["status"] == "done" else ""
-                    report_text += (
-                        f"– {task_info['task_type_name']} — {status_emoji} "
-                        f"{task_info['reward_amount']} ARS{time_text} {media_icon}\n"
-                    )
-                
-                total_time_text = f"{child_data['total_time']} минут" if child_data['total_time'] > 0 else "0 минут"
-                report_text += (
-                    f"\n⏱ Общее время выполнения: {total_time_text}\n"
-                    f"💰 Сумма за выполненные задания: {child_data['total']} ARS"
-                )
+                header = f"📊 Отчет за вчера ({report_date.strftime('%d.%m.%Y')})\n\n"
+                report_text = header + ReportService.format_daily_report_block_one_child(child_data)
                 sent = await callback.message.answer(report_text)
                 schedule_message_delete(callback.bot, callback.message.chat.id, sent.message_id, REPORT_AUTO_DELETE_SEC)
-            
             await callback.answer("Отчёт отправлен")
-            
+
         elif period == "week":
             # Отчет за неделю по конкретному ребенку
             week_start = date.today() - timedelta(days=6)

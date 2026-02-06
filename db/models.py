@@ -35,14 +35,6 @@ class UserRole(PyEnum):
     CHILD = "child"
 
 
-class ChatType(PyEnum):
-    """Типы чатов"""
-
-    FAMILY_GROUP = "family_group"
-    ADMIN_PRIVATE = "admin_private"
-    PUBLIC_CHANNEL = "public_channel"
-
-
 class TaskCategory(PyEnum):
     """Категории заданий"""
 
@@ -103,21 +95,6 @@ class User(Base):
     # Relationships
     rewards: Mapped[list["ChildTaskReward"]] = relationship(back_populates="child")
     tasks: Mapped[list["Task"]] = relationship(back_populates="child")
-
-
-class Chat(Base):
-    """
-    Чаты и каналы
-    См. SPEC.md раздел 3.2
-    """
-
-    __tablename__ = "chats"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    telegram_chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    type: Mapped[ChatType] = mapped_column(Enum(ChatType), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class TaskType(Base):
@@ -236,4 +213,18 @@ class TaskMedia(Base):
 
     # Relationships
     task: Mapped["Task"] = relationship(back_populates="media")
+
+
+class Feedback(Base):
+    """
+    Обратная связь от пользователей (команда /feedback).
+    """
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

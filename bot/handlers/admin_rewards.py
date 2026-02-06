@@ -42,12 +42,8 @@ ALL_DAYS = "MON,TUE,WED,THU,FRI,SAT,SUN"
 router = Router()
 logger = logging.getLogger(__name__)
 
-# Применяем middleware для проверки прав админа
-from bot.middleware.auth import AdminMiddleware
 from bot.middleware.auto_delete import AutoDeleteMiddleware
 
-router.message.middleware(AdminMiddleware())
-router.callback_query.middleware(AdminMiddleware())
 router.message.middleware(AutoDeleteMiddleware())
 
 

@@ -35,7 +35,8 @@ class ScheduleService:
         )
         schedules = result.scalars().all()
 
-        # Фильтруем по дням недели
+        # Фильтр по дням недели в Python; при росте числа расписаний можно перенести в SQL
+        # (например, проверка вхождения weekday_name в строку days_of_week на стороне БД)
         matching_schedules = []
         for schedule in schedules:
             if weekday_name in schedule.days_of_week:

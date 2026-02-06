@@ -11,7 +11,6 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.handlers.fsm_states import AddScheduleStates
 from bot.keyboards.admin import get_back_button_menu
-from bot.middleware.auth import AdminMiddleware
 from bot.utils.auto_delete import schedule_message_delete
 from db.database import AsyncSessionLocal
 from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScope, TaskType, User, UserRole
@@ -19,8 +18,6 @@ from db.models import ChildTaskReward, Schedule, SchedulePeriodicity, TargetScop
 router = Router()
 logger = logging.getLogger(__name__)
 
-router.message.middleware(AdminMiddleware())
-router.callback_query.middleware(AdminMiddleware())
 from bot.middleware.auto_delete import AutoDeleteMiddleware
 router.message.middleware(AutoDeleteMiddleware())
 

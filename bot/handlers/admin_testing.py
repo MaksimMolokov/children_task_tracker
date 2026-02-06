@@ -9,7 +9,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.keyboards.admin import ADMIN_BACK_MAIN, get_back_button_menu
-from bot.middleware.auth import AdminMiddleware
 from db.database import AsyncSessionLocal
 from db.models import ChildTaskReward, TaskType, User, UserRole
 from sqlalchemy import select
@@ -17,8 +16,6 @@ from sqlalchemy import select
 router = Router()
 logger = logging.getLogger(__name__)
 
-router.message.middleware(AdminMiddleware())
-router.callback_query.middleware(AdminMiddleware())
 from bot.middleware.auto_delete import AutoDeleteMiddleware
 router.message.middleware(AutoDeleteMiddleware())
 

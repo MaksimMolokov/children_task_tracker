@@ -7,7 +7,6 @@ from aiogram import Router
 from aiogram.types import CallbackQuery
 
 from bot.keyboards.admin import get_admin_rewards_menu, get_back_button_menu
-from bot.middleware.auth import AdminMiddleware
 from bot.utils.event_log import log_event
 from db.database import AsyncSessionLocal
 from db.models import Schedule, SchedulePeriodicity, TaskType, User, UserRole, ChildTaskReward
@@ -27,8 +26,6 @@ DAYS_OF_WEEK = {
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-router.callback_query.middleware(AdminMiddleware())
 
 
 @router.callback_query(lambda c: c.data == "ADMIN_ASSIGN_TASK_LIST")
@@ -441,9 +438,12 @@ async def handle_assign_task_do(callback: CallbackQuery):
     task_type_id = int(parts[1])
     child_id = int(parts[2])
 
+    import logging
     from datetime import date
-    from db.models import Task, TaskStatus
-    from sqlalchemy import select
+
+    from bot.services.task_service import TaskService
+
+    logger = logging.getLogger(__name__)
 
     async with AsyncSessionLocal() as session:
         child = await session.get(User, child_id)
@@ -453,52 +453,25 @@ async def handle_assign_task_do(callback: CallbackQuery):
             await callback.answer("Ошибка: данные не найдены", show_alert=True)
             return
 
-        # Проверяем, нет ли уже такой задачи на сегодня
         today = date.today()
-        existing = await session.execute(
-            select(Task).where(
-                Task.child_id == child_id,
-                Task.task_type_id == task_type_id,
-                Task.scheduled_date == today
+        try:
+            task = await TaskService.create_task_for_child(
+                session, child_id, task_type_id, today, chat_id=0, message_id=0
             )
-        )
-        if existing.scalar_one_or_none():
-            await callback.answer("Это задание уже назначено ребёнку на сегодня!", show_alert=True)
+        except ValueError as e:
+            if "уже существует" in str(e):
+                await callback.answer("Это задание уже назначено ребёнку на сегодня!", show_alert=True)
+            else:
+                await callback.answer(f"Ошибка: {e}", show_alert=True)
             return
 
-        # Получаем награду для этого ребёнка и типа задания (или дефолтную)
-        reward_res = await session.execute(
-            select(ChildTaskReward).where(
-                ChildTaskReward.child_id == child_id,
-                ChildTaskReward.task_type_id == task_type_id
-            )
-        )
-        reward = reward_res.scalar_one_or_none()
-        reward_amount = reward.reward_amount if reward else (task_type.reward_amount or Decimal(0))
-
-        # Создаем задачу
-        task = Task(
-            child_id=child_id,
-            task_type_id=task_type_id,
-            scheduled_date=today,
-            status=TaskStatus.PENDING,
-            reward_amount=reward_amount,
-            currency="ARS"
-        )
-        session.add(task)
-        await session.commit()
-        await session.refresh(task)
-        
-        # Логирование для отладки
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(
-            f"Task created: id={task.id}, child_id={child_id}, task_type_id={task_type_id}, "
-            f"scheduled_date={task.scheduled_date}, status={task.status}, reward_amount={task.reward_amount}"
+            "Task created: id=%s, child_id=%s, task_type_id=%s, scheduled_date=%s, reward_amount=%s",
+            task.id, child_id, task_type_id, task.scheduled_date, task.reward_amount,
         )
 
-        # Формируем сообщение для администратора
         success_message = f"Для ребенка \"{child.display_name}\" назначено задание \"{task_type.name}\""
+        reward_amount = task.reward_amount
 
         # Отправляем уведомление ребёнку
         from bot.main import Bot
@@ -594,9 +567,11 @@ async def handle_assign_task_do(callback: CallbackQuery):
             )
 
 
-@router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_DELETE:"))
+@router.callback_query(
+    lambda c: c.data.startswith("ADMIN_TASK_TYPE_DELETE:") and not c.data.startswith("ADMIN_TASK_TYPE_DELETE_CONFIRM:")
+)
 async def handle_task_type_delete(callback: CallbackQuery):
-    """Удаление типа задания"""
+    """Показ подтверждения перед удалением (деактивацией) карточки задания"""
     task_type_id = int(callback.data.split(":")[1])
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -611,12 +586,45 @@ async def handle_task_type_delete(callback: CallbackQuery):
             return
 
         task_name = task_type.name
-        # Мягкое удаление - помечаем как неактивного
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="Да, удалить",
+                callback_data=f"ADMIN_TASK_TYPE_DELETE_CONFIRM:{task_type_id}",
+            ),
+            InlineKeyboardButton(
+                text="Отмена",
+                callback_data="ADMIN_TASK_TYPE_LIST",
+            ),
+        ]
+    ])
+    await callback.message.edit_text(
+        f"Вы уверены, что хотите удалить карточку задания «{task_name}»?",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("ADMIN_TASK_TYPE_DELETE_CONFIRM:"))
+async def handle_task_type_delete_confirm(callback: CallbackQuery):
+    """Деактивация карточки задания после подтверждения"""
+    task_type_id = int(callback.data.split(":")[1])
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(TaskType).where(TaskType.id == task_type_id)
+        )
+        task_type = result.scalar_one_or_none()
+
+        if not task_type:
+            await callback.answer("Тип задания не найден", show_alert=True)
+            return
+
+        task_name = task_type.name
         task_type.is_active = False
         await session.commit()
 
-    await callback.answer(f"Тип задания '{task_name}' удалён (деактивирован)", show_alert=True)
-
-    # Обновляем список
+    await callback.answer(f"Карточка задания «{task_name}» удалена (деактивирована)", show_alert=True)
     await handle_task_type_list(callback)
 

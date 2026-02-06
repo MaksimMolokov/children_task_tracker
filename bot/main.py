@@ -8,13 +8,14 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 from contextlib import asynccontextmanager
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from bot.config import ADMIN_TELEGRAM_ID, BOT_TOKEN, TIMEZONE
 from bot.utils.event_log import log_event
 from bot.handlers import admin, admin_menu, children, common
+from bot.middleware.auth import AdminMiddleware
 from db.database import AsyncSessionLocal, close_db, init_db
 from db.models import User, UserRole
 from scheduler.jobs import set_bot_instance, setup_scheduler
@@ -98,18 +99,24 @@ async def main():
     # См. SPEC.md раздел 4 "Логика и поведение" и раздел 7 "Админ-меню"
     from bot.handlers import admin_children, admin_rewards, admin_schedules, admin_task_types, admin_testing, admin_access
 
-    # Важно: FSM обработчики должны быть зарегистрированы первыми для правильной работы
-    # Роутер children должен быть зарегистрирован раньше admin_menu, чтобы обработчик task_complete не перехватывался
+    # Важно: роутер children должен быть зарегистрирован раньше admin_menu, чтобы обработчик task_complete не перехватывался
     dp.include_router(children.router)  # Обработчики действий детей (task_complete, медиа)
-    dp.include_router(admin_children.router)  # Обработчики для детей (включая FSM)
-    dp.include_router(admin_rewards.router)  # Обработчики для карточек заданий (включая FSM)
-    dp.include_router(admin_schedules.router)  # Обработчики для расписаний (включая FSM)
-    dp.include_router(admin_task_types.router)  # Обработчики для списка карточек заданий
-    dp.include_router(admin_testing.router)  # Обработчики для тестирования
-    dp.include_router(admin_access.router)  # Обработчики для управления доступами
+
+    # Админ-роутеры: AdminMiddleware подключён один раз к группе
+    admin_router = Router()
+    admin_router.callback_query.middleware(AdminMiddleware())
+    admin_router.message.middleware(AdminMiddleware())
+    admin_router.include_router(admin_children.router)
+    admin_router.include_router(admin_rewards.router)
+    admin_router.include_router(admin_schedules.router)
+    admin_router.include_router(admin_task_types.router)
+    admin_router.include_router(admin_testing.router)
+    admin_router.include_router(admin_access.router)
+    admin_router.include_router(admin.router)
+    admin_router.include_router(admin_menu.router)
+    dp.include_router(admin_router)
+
     dp.include_router(common.router)
-    dp.include_router(admin.router)
-    dp.include_router(admin_menu.router)  # Админ-меню
 
     # Инициализация БД и планировщика
     async with lifespan(None):

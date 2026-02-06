@@ -9,12 +9,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot.config import ADMIN_TELEGRAM_ID
-from bot.middleware.auth import AdminMiddleware
 
 router = Router()
-
-# Применяем middleware для проверки прав админа ко всем обработчикам
-router.message.middleware(AdminMiddleware())
 
 
 @router.message(Command("add_child"))
